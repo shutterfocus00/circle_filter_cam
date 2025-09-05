@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('gl-canvas');
     const video = document.getElementById('video-feed');
     const modeToggleBtn = document.getElementById('mode-toggle-btn');
-    const cameraSwitchBtn = document.getElementById('camera-switch-btn');
     const shutterBtn = document.getElementById('shutter-btn');
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
@@ -10,16 +9,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
-    let currentFacingMode = 'user'; // 'user' はインカメラ, 'environment' は外カメラ
     let originalImage = null;
     let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
 
     if (!gl) {
-        alert('WebGLは現在のブラウザでサポートされていません。');
+        alert('WebGLがサポートされていません。');
         return;
     }
 
+    // シェーダーソースコード
     const vsSource = `
         attribute vec4 a_position;
         varying vec2 v_texCoord;
@@ -32,39 +31,52 @@ document.addEventListener('DOMContentLoaded', () => {
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
-        uniform float u_brightness;
-        uniform float u_temp;
-        uniform float u_contrast;
-        uniform float u_saturation;
+        uniform vec2 u_mouse_pos;
         varying vec2 v_texCoord;
         
         void main() {
+            // 💡 変更点1: カメラ映像の上下反転を修正
             vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
             vec4 original_color = texture2D(u_image, texCoord);
             vec4 final_color = original_color;
 
-            // 明るさ調整
-            float gamma = 1.0 + u_brightness * 2.0;
+            // サークルの中心を基準にマウスの位置を正規化
+            vec2 center = vec2(0.5, 0.5);
+            vec2 direction = u_mouse_pos - center;
+            float dist_from_center = length(direction);
+            
+            // 💡 変更点2: フィルターを写真全体に適用するためのパラメータ計算
+            // マウスの位置から写真全体にかかるフィルター強度を計算
+            float effect_strength = clamp(dist_from_center * 2.0, 0.0, 1.0); // 最大値を1.0に制限
+            
+            // 明るさ調整（上下ドラッグ）
+            float brightness_factor = -direction.y * 2.0;
+            float gamma = 1.0 + brightness_factor * effect_strength;
             final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
 
-            // 色温度調整
+            // 色温度調整（左右ドラッグ）
+            float temp_factor = direction.x * 2.0;
             vec3 temp_adjust = vec3(0.0);
-            if (u_temp > 0.0) {
-                temp_adjust = vec3(u_temp, 0.0, -u_temp);
-            } else {
-                temp_adjust = vec3(u_temp, 0.0, -u_temp);
+            if (temp_factor > 0.0) { // 暖色
+                temp_adjust = vec3(0.15, 0.0, -0.15);
+            } else { // 寒色
+                temp_adjust = vec3(-0.15, 0.0, 0.15);
             }
-            final_color.rgb += temp_adjust;
+            final_color.rgb += temp_adjust * effect_strength;
 
             // コントラストと彩度を強調
-            final_color.rgb = (final_color.rgb - 0.5) * u_contrast + 0.5;
+            float contrast = 1.0 + effect_strength * 0.5;
+            final_color.rgb = (final_color.rgb - 0.5) * contrast + 0.5;
+            
+            float saturation = 1.0 + effect_strength * 0.3;
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-            final_color.rgb = mix(vec3(luma), final_color.rgb, u_saturation);
+            final_color.rgb = mix(vec3(luma), final_color.rgb, saturation);
 
             gl_FragColor = final_color;
         }
     `;
 
+    // 以下のコードは変更なし
     function createShader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
@@ -96,11 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
 
     const imageLocation = gl.getUniformLocation(program, 'u_image');
-    const brightnessLocation = gl.getUniformLocation(program, 'u_brightness');
-    const tempLocation = gl.getUniformLocation(program, 'u_temp');
-    const contrastLocation = gl.getUniformLocation(program, 'u_contrast');
-    const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
-
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+    const mousePosLocation = gl.getUniformLocation(program, 'u_mouse_pos');
+    
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -108,19 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     function startCamera() {
-        const constraints = {
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: currentFacingMode
-            }
-        };
-        
-        if (video.srcObject) {
-            video.srcObject.getTracks().forEach(track => track.stop());
-        }
-
-        navigator.mediaDevices.getUserMedia(constraints)
+        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
             .then(stream => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
@@ -137,29 +135,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isCameraMode && video.readyState >= 2) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-        } else if (!isCameraMode && originalImage) {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
         
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const dist = Math.sqrt(Math.pow(mousePos.x * canvas.width - centerX, 2) + Math.pow((1 - mousePos.y) * canvas.height - centerY, 2));
-        const maxDist = Math.min(centerX, centerY);
-        const effectStrength = Math.min(dist / maxDist, 1.0);
+        gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+        gl.uniform2f(mousePosLocation, mousePos.x, mousePos.y);
         
-        const directionY = ((1 - mousePos.y) * canvas.height - centerY) / maxDist;
-        const directionX = (mousePos.x * canvas.width - centerX) / maxDist;
-
-        gl.uniform1f(brightnessLocation, -directionY * effectStrength);
-        gl.uniform1f(tempLocation, directionX * effectStrength);
-        gl.uniform1f(contrastLocation, 1.0 + effectStrength * 0.5);
-        gl.uniform1f(saturationLocation, 1.0 + effectStrength * 0.3);
-
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         requestAnimationFrame(render);
     }
     
+    // マウス/タッチイベントハンドラー
     function handleMove(e) {
         let x, y;
         if (e.touches) {
@@ -176,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             touchIndicator.style.top = `${y}px`;
         }
         mousePos.x = x / canvas.width;
-        mousePos.y = 1.0 - (y / canvas.height); // WebGLのY軸は下方向が0
+        mousePos.y = 1.0 - (y / canvas.height);
     }
 
     function handleEnd() {
@@ -187,34 +172,28 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('touchmove', handleMove);
     canvas.addEventListener('touchend', handleEnd);
 
+    // ウィンドウサイズ変更時にキャンバスをリサイズ
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
     });
-    window.dispatchEvent(new Event('resize')); // 初回リサイズ
+    window.dispatchEvent(new Event('resize')); // 初回実行
 
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
             modeToggleBtn.textContent = '写真編集モード';
             shutterBtn.classList.remove('hidden');
-            saveBtn.classList.add('hidden'); // カメラモードでは「撮影」ボタンのみ表示
-            cameraSwitchBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
             imageUpload.classList.add('hidden');
             startCamera();
         } else {
             modeToggleBtn.textContent = 'リアルタイム撮影モード';
             shutterBtn.classList.add('hidden');
-            saveBtn.classList.remove('hidden'); // 編集モードでは「保存」ボタンのみ表示
-            cameraSwitchBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
             imageUpload.click();
         }
-    });
-    
-    cameraSwitchBtn.addEventListener('click', () => {
-        currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-        startCamera();
     });
 
     imageUpload.addEventListener('change', (e) => {
@@ -235,25 +214,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 「撮影」ボタンのクリックイベント（リアルタイムカメラモード時）
     shutterBtn.addEventListener('click', () => {
-        // 現在WebGLキャンバスに描画されている内容をダウンロード
+        const finalCanvas = document.createElement('canvas');
+        const finalCtx = finalCanvas.getContext('2d');
+        finalCanvas.width = video.videoWidth;
+        finalCanvas.height = video.videoHeight;
+        
+        finalCtx.drawImage(video, 0, 0, finalCanvas.width, finalCanvas.height);
+        
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
-        link.download = `photo_filtered_${Date.now()}.png`;
+        link.download = `photo_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     });
     
-    // 「保存」ボタンのクリックイベント（写真編集モード時）
     saveBtn.addEventListener('click', () => {
-        // 現在WebGLキャンバスに描画されている内容をダウンロード
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
-        link.download = `edited_photo_filtered_${Date.now()}.png`;
+        link.download = `edited_photo_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
