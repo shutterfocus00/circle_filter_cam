@@ -39,27 +39,41 @@ document.addEventListener('DOMContentLoaded', () => {
             float dist_from_center = length(direction);
             
             vec4 original_color = texture2D(u_image, normalized_coord);
-            
             vec4 final_color = original_color;
             
             float max_dist = 0.5; // サークルの最大半径
             
             if (dist_from_center < max_dist) {
-                float effect_strength = 1.0 - (dist_from_center / max_dist);
+                // 💡 修正点1: フィルターの強度を計算
+                // 中心で0、マウス位置で100%になるように調整
+                float effect_strength = dist_from_center / max_dist;
                 
-                // 明るさ調整（上下方向）
-                float brightness_factor = direction.y * 2.0 * effect_strength;
-                final_color.rgb += original_color.rgb * brightness_factor;
+                // 💡 修正点2: 方向に基づいたフィルターの調整
+                // 上下方向: 明るさ調整
+                float brightness_factor = -direction.y * effect_strength;
+                // 左右方向: 色温度調整
+                float temp_factor = direction.x * effect_strength;
                 
-                // 色温度調整（左右方向）
-                float temp_factor = direction.x * 2.0 * effect_strength;
+                // 明るさ調整: ガンマ補正を模倣し、より自然な明るさ変化に
+                float gamma = 1.0 + brightness_factor * 2.0;
+                final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
+
+                // 色温度調整: RGB値を直接操作
                 vec3 temp_adjust = vec3(0.0);
                 if (temp_factor > 0.0) { // 暖色
-                    temp_adjust = vec3(temp_factor, 0.0, -temp_factor);
+                    temp_adjust = vec3(0.15, 0.0, -0.15) * temp_factor;
                 } else { // 寒色
-                    temp_adjust = vec3(temp_factor, 0.0, -temp_factor);
+                    temp_adjust = vec3(0.15, 0.0, -0.15) * -temp_factor;
                 }
-                final_color.rgb += final_color.rgb * temp_adjust;
+                final_color.rgb += temp_adjust;
+
+                // 💡 修正点3: コントラストと彩度を強調し「かかってる感」を出す
+                float contrast = 1.0 + effect_strength * 0.5;
+                final_color.rgb = (final_color.rgb - 0.5) * contrast + 0.5;
+                
+                float saturation = 1.0 + effect_strength * 0.3;
+                float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+                final_color.rgb = mix(vec3(luma), final_color.rgb, saturation);
             }
 
             gl_FragColor = final_color;
