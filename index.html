@@ -5,20 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直感カメラアプリ</title>
     <style>
-        /* 💡 修正点: Safariの100vh問題を回避 */
         html, body {
-            height: 100%; /* bodyの高さをhtmlの100%に */
+            height: 100%;
             margin: 0;
             padding: 0;
             overflow: hidden;
             background-color: #111;
             color: #eee;
             font-family: sans-serif;
-            -webkit-overflow-scrolling: touch; /* iOSでのスクロールをスムーズに */
+            -webkit-overflow-scrolling: touch;
         }
         
         #app-container {
-            position: fixed; /* 💡 修正点: 画面内に固定 */
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
@@ -31,8 +30,22 @@
         #gl-canvas {
             width: 100%;
             height: 100%;
-            display: block; /* 💡 修正点: canvasの余白を削除 */
+            display: block;
         }
+        
+        /* 💡 新規追加: サークルUIのスタイル */
+        #circle-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vmin; /* 画面サイズの80%を基準にサイズを決定 */
+            height: 80vmin;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none; /* 下のcanvasをクリック可能にする */
+        }
+
         #controls {
             position: absolute;
             bottom: 20px;
@@ -48,7 +61,7 @@
             font-size: 1rem;
             cursor: pointer;
             transition: background-color 0.3s;
-            -webkit-appearance: none; /* 💡 修正点: ボタンのデフォルトスタイルをリセット */
+            -webkit-appearance: none;
         }
         .btn:hover {
             background-color: rgba(255, 255, 255, 0.4);
@@ -62,7 +75,7 @@
     <div id="app-container">
         <canvas id="gl-canvas"></canvas>
         <video id="video-feed" style="display: none;"></video>
-        <div id="controls">
+        <div id="circle-overlay"></div> <div id="controls">
             <button id="mode-toggle-btn" class="btn">写真編集モード</button>
             <button id="shutter-btn" class="btn">撮影</button>
             <button id="save-btn" class="btn hidden">保存</button>
