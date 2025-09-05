@@ -41,8 +41,10 @@
             transform: translate(-50%, -50%);
             width: 80vmin;
             height: 80vmin;
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            /* 💡 修正: 枠線の太さとシャドウを追加 */
+            border: 3px solid rgba(255, 255, 255, 0.7);
             border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             pointer-events: none;
         }
         
@@ -50,9 +52,11 @@
             position: absolute;
             width: 20px;
             height: 20px;
+            /* 💡 修正: シャドウを追加 */
             background-color: rgba(255, 255, 255, 0.8);
             border: 1px solid #fff;
             border-radius: 50%;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.2s ease-in-out;
@@ -75,6 +79,8 @@
             cursor: pointer;
             transition: background-color 0.3s;
             -webkit-appearance: none;
+            /* 💡 修正: シャドウを追加 */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
         .btn:hover {
             background-color: rgba(255, 255, 255, 0.4);
