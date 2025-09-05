@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             touchIndicator.style.top = `${y}px`;
         }
         mousePos.x = x / canvas.width;
-        mousePos.y = 1.0 - (y / canvas.height);
+        mousePos.y = 1.0 - (y / canvas.height); // WebGLのY軸は下方向が0
     }
 
     function handleEnd() {
@@ -192,21 +192,21 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
     });
-    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event('resize')); // 初回リサイズ
 
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
             modeToggleBtn.textContent = '写真編集モード';
             shutterBtn.classList.remove('hidden');
-            saveBtn.classList.add('hidden');
+            saveBtn.classList.add('hidden'); // カメラモードでは「撮影」ボタンのみ表示
             cameraSwitchBtn.classList.remove('hidden');
             imageUpload.classList.add('hidden');
             startCamera();
         } else {
             modeToggleBtn.textContent = 'リアルタイム撮影モード';
             shutterBtn.classList.add('hidden');
-            saveBtn.classList.remove('hidden');
+            saveBtn.classList.remove('hidden'); // 編集モードでは「保存」ボタンのみ表示
             cameraSwitchBtn.classList.add('hidden');
             imageUpload.click();
         }
@@ -235,21 +235,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 「撮影」ボタンのクリックイベント（リアルタイムカメラモード時）
     shutterBtn.addEventListener('click', () => {
+        // 現在WebGLキャンバスに描画されている内容をダウンロード
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
-        link.download = `edited_photo_${Date.now()}.png`;
+        link.download = `photo_filtered_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     });
     
+    // 「保存」ボタンのクリックイベント（写真編集モード時）
     saveBtn.addEventListener('click', () => {
+        // 現在WebGLキャンバスに描画されている内容をダウンロード
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
-        link.download = `edited_photo_${Date.now()}.png`;
+        link.download = `edited_photo_filtered_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
