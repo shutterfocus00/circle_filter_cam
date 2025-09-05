@@ -10,13 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
+    let currentFacingMode = 'user'; // 'user' is front camera, 'environment' is rear camera
     let originalImage = null;
     let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
-    let currentFacingMode = 'user'; // 'user' はインカメラ, 'environment' は外カメラ
 
     if (!gl) {
-        alert('WebGLがサポートされていません。');
+        alert('WebGL is not supported on this browser.');
         return;
     }
 
@@ -130,6 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isCameraMode && video.readyState >= 2) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        } else if (!isCameraMode && originalImage) {
+            // 画像編集モードでは、テクスチャを再利用して画像をレンダリング
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
         
         const centerX = canvas.width / 2;
@@ -231,14 +235,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     shutterBtn.addEventListener('click', () => {
-        const finalCanvas = document.createElement('canvas');
-        const finalCtx = finalCanvas.getContext('2d');
-        finalCanvas.width = video.videoWidth;
-        finalCanvas.height = video.videoHeight;
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
         
-        finalCtx.drawImage(video, 0, 0, finalCanvas.width, finalCanvas.height);
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
         
-        const dataURL = canvas.toDataURL('image/png');
+        const dataURL = tempCanvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
         link.download = `photo_${Date.now()}.png`;
