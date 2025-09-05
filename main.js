@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shutterBtn = document.getElementById('shutter-btn');
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
+    const touchIndicator = document.getElementById('touch-indicator'); // 💡 新規追加
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
@@ -41,33 +42,28 @@ document.addEventListener('DOMContentLoaded', () => {
             vec4 original_color = texture2D(u_image, normalized_coord);
             vec4 final_color = original_color;
             
-            float max_dist = 0.5; // サークルの最大半径
+            float max_dist = 0.5;
             
             if (dist_from_center < max_dist) {
-                // 💡 修正点1: フィルターの強度を計算
-                // 中心で0、マウス位置で100%になるように調整
+                // フィルターの強度を計算（マウス位置で最大）
                 float effect_strength = dist_from_center / max_dist;
                 
-                // 💡 修正点2: 方向に基づいたフィルターの調整
-                // 上下方向: 明るさ調整
-                float brightness_factor = -direction.y * effect_strength;
-                // 左右方向: 色温度調整
-                float temp_factor = direction.x * effect_strength;
-                
-                // 明るさ調整: ガンマ補正を模倣し、より自然な明るさ変化に
+                // 上下ドラッグ: 明るさ調整
+                float brightness_factor = -direction.y * 2.0 * effect_strength;
                 float gamma = 1.0 + brightness_factor * 2.0;
                 final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
 
-                // 色温度調整: RGB値を直接操作
+                // 左右ドラッグ: 色温度調整
+                float temp_factor = direction.x * 2.0 * effect_strength;
                 vec3 temp_adjust = vec3(0.0);
                 if (temp_factor > 0.0) { // 暖色
                     temp_adjust = vec3(0.15, 0.0, -0.15) * temp_factor;
                 } else { // 寒色
-                    temp_adjust = vec3(0.15, 0.0, -0.15) * -temp_factor;
+                    temp_adjust = vec3(-0.15, 0.0, 0.15) * -temp_factor;
                 }
                 final_color.rgb += temp_adjust;
 
-                // 💡 修正点3: コントラストと彩度を強調し「かかってる感」を出す
+                // コントラストと彩度を強調
                 float contrast = 1.0 + effect_strength * 0.5;
                 final_color.rgb = (final_color.rgb - 0.5) * contrast + 0.5;
                 
@@ -147,11 +143,37 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(render);
     }
     
-    canvas.addEventListener('mousemove', (e) => {
-        mousePos.x = e.offsetX / canvas.width;
-        mousePos.y = 1.0 - (e.offsetY / canvas.height);
-    });
-    
+    // マウス/タッチイベントハンドラー
+    function handleMove(e) {
+        let x, y;
+        if (e.touches) {
+            x = e.touches[0].clientX;
+            y = e.touches[0].clientY;
+            // タッチインジケーターを表示
+            touchIndicator.style.opacity = 1;
+            touchIndicator.style.left = `${x}px`;
+            touchIndicator.style.top = `${y}px`;
+        } else {
+            x = e.clientX;
+            y = e.clientY;
+            // マウスインジケーターは常に表示
+            touchIndicator.style.opacity = 1;
+            touchIndicator.style.left = `${x}px`;
+            touchIndicator.style.top = `${y}px`;
+        }
+        mousePos.x = x / canvas.width;
+        mousePos.y = 1.0 - (y / canvas.height);
+    }
+
+    function handleEnd() {
+        // タッチ終了時、インジケーターを非表示に
+        touchIndicator.style.opacity = 0;
+    }
+
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('touchmove', handleMove);
+    canvas.addEventListener('touchend', handleEnd);
+
     // ウィンドウサイズ変更時にキャンバスをリサイズ
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
