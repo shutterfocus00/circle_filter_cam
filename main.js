@@ -7,11 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
     const touchIndicator = document.getElementById('touch-indicator');
-    const circleOverlay = document.getElementById('circle-overlay'); // サークルオーバーレイ要素を取得
+    const circleOverlay = document.getElementById('circle-overlay');
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
-    let currentFacingMode = 'user';
+    // 💡 修正: デフォルトのカメラを'environment'（外カメ）に設定
+    let currentFacingMode = 'environment';
     let originalImage = null;
     let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
@@ -31,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
 
-    // 💡 修正: フィルターをフィルムライクでリッチな雰囲気に変更
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
@@ -39,11 +39,10 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float u_temp;
         uniform float u_contrast;
         uniform float u_saturation;
-        uniform float u_fade; // 新しいフェードパラメータ
-        uniform float u_hue_shift; // 新しい色相シフトパラメータ
+        uniform float u_fade;
+        uniform float u_hue_shift;
         varying vec2 v_texCoord;
         
-        // RGB to HSL and HSL to RGB conversion functions from https://gist.github.com/mjackson/5311256
         vec3 rgb2hsl(vec3 color) {
             float H = 0.0, S = 0.0, L = 0.0;
             float Cmin = min(min(color.r, color.g), color.b);
@@ -100,39 +99,33 @@ document.addEventListener('DOMContentLoaded', () => {
             return vec3(R, G, B);
         }
 
-
         void main() {
             vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
             vec4 original_color = texture2D(u_image, texCoord);
             vec4 final_color = original_color;
 
-            // 1. フェード効果 (ブラックポイント/ホワイトポイントの調整)
-            final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4); // シャドウを明るくしてマットに
-            final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2); // ハイライトを柔らかく
+            final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
+            final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
 
-            // 2. 明るさ調整 (ガンマ補正をより洗練されたものに)
-            float brightness_factor = 1.0 + u_brightness * 0.5; // -0.5 ~ 1.5
+            float brightness_factor = 1.0 + u_brightness * 0.5;
             final_color.rgb = pow(final_color.rgb, vec3(1.0 / brightness_factor));
 
-            // 3. 色温度調整 (より自然なフィルムトーン)
             vec3 color_temp_matrix = vec3(1.0);
-            if (u_temp > 0.0) { // 暖色
-                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2); // 赤と緑を強調、青を抑える
-            } else { // 寒色
-                color_temp_matrix = vec3(1.0 + u_temp * 0.2, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.3); // 青を強調、赤を抑える
+            if (u_temp > 0.0) {
+                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2);
+            } else {
+                color_temp_matrix = vec3(1.0 + u_temp * 0.2, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.3);
             }
             final_color.rgb *= color_temp_matrix;
 
-            // 4. コントラストと彩度
-            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.8) + 0.5; // コントラストを強調
+            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.8) + 0.5;
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5); // 彩度を強調
+            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
-            // 5. 色相シフト (わずかな色味の統一感)
             if (abs(u_hue_shift) > 0.001) {
                 vec3 hsl = rgb2hsl(final_color.rgb);
-                hsl.x += u_hue_shift * 0.05; // わずかに色相をシフト
-                hsl.x = mod(hsl.x, 1.0); // 0-1の範囲にクリップ
+                hsl.x += u_hue_shift * 0.05;
+                hsl.x = mod(hsl.x, 1.0);
                 final_color.rgb = hsl2rgb(hsl);
             }
             
@@ -175,8 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tempLocation = gl.getUniformLocation(program, 'u_temp');
     const contrastLocation = gl.getUniformLocation(program, 'u_contrast');
     const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
-    const fadeLocation = gl.getUniformLocation(program, 'u_fade'); // 新しいUniform
-    const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift'); // 新しいUniform
+    const fadeLocation = gl.getUniformLocation(program, 'u_fade');
+    const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
 
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -219,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
         
-        // 💡 修正: 操作範囲をサークル内に限定
         const circleRect = circleOverlay.getBoundingClientRect();
         const circleCenterX = circleRect.left + circleRect.width / 2;
         const circleCenterY = circleRect.top + circleRect.height / 2;
@@ -240,27 +232,26 @@ document.addEventListener('DOMContentLoaded', () => {
         let fade = 0.0;
         let hue_shift = 0.0;
 
-        if (distFromCircleCenter <= circleRadius) { // サークル内でのみフィルターを適用
-            const normalizedX = (currentMouseX - circleCenterX) / circleRadius; // -1 to 1
-            const normalizedY = (currentMouseY - circleCenterY) / circleRadius; // -1 to 1
+        if (distFromCircleCenter <= circleRadius) {
+            const normalizedX = (currentMouseX - circleCenterX) / circleRadius;
+            const normalizedY = (currentMouseY - circleCenterY) / circleRadius;
 
-            brightness = -normalizedY; // 上で明るく、下で暗く
-            temp = normalizedX; // 右で暖かく、左で寒く
+            brightness = -normalizedY;
+            temp = normalizedX;
             
-            const effectStrength = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY); // 中心からの距離で効果の強さを調整
+            const effectStrength = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
             contrast = effectStrength;
             saturation = effectStrength;
-            fade = effectStrength * 0.5; // フェード効果も強さに応じて
-            hue_shift = normalizedX * 0.5; // 色相シフトも横軸に連動
+            fade = effectStrength * 0.5;
+            hue_shift = normalizedX * 0.5;
         }
-        // サークル外では、フィルター値はデフォルト（0）のままなので、効果なしになる
 
         gl.uniform1f(brightnessLocation, brightness);
         gl.uniform1f(tempLocation, temp);
         gl.uniform1f(contrastLocation, contrast);
         gl.uniform1f(saturationLocation, saturation);
-        gl.uniform1f(fadeLocation, fade); // 新しいUniformをセット
-        gl.uniform1f(hueShiftLocation, hue_shift); // 新しいUniformをセット
+        gl.uniform1f(fadeLocation, fade);
+        gl.uniform1f(hueShiftLocation, hue_shift);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         
@@ -284,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleMove(e) {
         let x, y;
-        const appContainerRect = canvas.getBoundingClientRect(); // アプリコンテナ全体のサイズ
+        const appContainerRect = canvas.getBoundingClientRect();
         if (e.touches) {
             x = e.touches[0].clientX;
             y = e.touches[0].clientY;
@@ -293,14 +284,29 @@ document.addEventListener('DOMContentLoaded', () => {
             y = e.clientY;
         }
         
-        // タッチインジケーターの表示位置
         touchIndicator.style.opacity = 1;
         touchIndicator.style.left = `${x}px`;
         touchIndicator.style.top = `${y}px`;
 
-        // WebGLシェーダー用の正規化された座標
         mousePos.x = (x - appContainerRect.left) / appContainerRect.width;
         mousePos.y = 1.0 - ((y - appContainerRect.top) / appContainerRect.height);
+
+        // 💡 修正: 触覚フィードバックのロジックを追加
+        if (navigator.vibrate) { // 振動APIがサポートされているか確認
+            const circleRect = circleOverlay.getBoundingClientRect();
+            const circleCenterX = circleRect.left + circleRect.width / 2;
+            const circleCenterY = circleRect.top + circleRect.height / 2;
+            const distFromCenter = Math.sqrt(
+                Math.pow(x - circleCenterX, 2) + 
+                Math.pow(y - circleCenterY, 2)
+            );
+            
+            // 💡 修正: フィルター効果が極端になる外縁近くで振動させる
+            // 距離がサークルの半径の80%～100%の範囲で振動
+            if (distFromCenter > circleRect.width * 0.4 && distFromCenter <= circleRect.width * 0.5) {
+                navigator.vibrate(10); // 10ミリ秒の微細な振動
+            }
+        }
     }
 
     function handleEnd() {
@@ -310,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', handleMove);
     canvas.addEventListener('touchmove', handleMove);
     canvas.addEventListener('touchend', handleEnd);
-    canvas.addEventListener('mouseleave', handleEnd); // マウスがキャンバス外に出たとき
+    canvas.addEventListener('mouseleave', handleEnd);
 
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
@@ -372,5 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ページロード時に自動で外カメを起動
     startCamera();
 });
