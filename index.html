@@ -26,6 +26,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            touch-action: none; /* タッチイベントのデフォルト動作を無効化 */
         }
         #gl-canvas {
             width: 100%;
@@ -33,17 +34,30 @@
             display: block;
         }
         
-        /* 💡 新規追加: サークルUIのスタイル */
         #circle-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80vmin; /* 画面サイズの80%を基準にサイズを決定 */
+            width: 80vmin;
             height: 80vmin;
             border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 50%;
-            pointer-events: none; /* 下のcanvasをクリック可能にする */
+            pointer-events: none;
+        }
+        
+        /* 💡 新規追加: タッチ位置を示す小さな円 */
+        #touch-indicator {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0; /* 最初は非表示 */
+            transition: opacity 0.2s ease-in-out;
+            transform: translate(-50%, -50%);
         }
 
         #controls {
@@ -75,7 +89,8 @@
     <div id="app-container">
         <canvas id="gl-canvas"></canvas>
         <video id="video-feed" style="display: none;"></video>
-        <div id="circle-overlay"></div> <div id="controls">
+        <div id="circle-overlay"></div>
+        <div id="touch-indicator"></div> <div id="controls">
             <button id="mode-toggle-btn" class="btn">写真編集モード</button>
             <button id="shutter-btn" class="btn">撮影</button>
             <button id="save-btn" class="btn hidden">保存</button>
