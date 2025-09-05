@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('gl-canvas');
     const video = document.getElementById('video-feed');
     const modeToggleBtn = document.getElementById('mode-toggle-btn');
+    const cameraSwitchBtn = document.getElementById('camera-switch-btn');
     const shutterBtn = document.getElementById('shutter-btn');
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let originalImage = null;
     let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
+    let currentFacingMode = 'user'; // 'user' はインカメラ, 'environment' は外カメラ
 
     if (!gl) {
         alert('WebGLがサポートされていません。');
@@ -27,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
 
-    // 💡 変更点: シェーダーが直接パラメータを受け取るように変更
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
@@ -42,20 +43,17 @@ document.addEventListener('DOMContentLoaded', () => {
             vec4 original_color = texture2D(u_image, texCoord);
             vec4 final_color = original_color;
 
-            // 明るさ調整
             float gamma = 1.0 + u_brightness * 2.0;
             final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
 
-            // 色温度調整
             vec3 temp_adjust = vec3(0.0);
-            if (u_temp > 0.0) { // 暖色
+            if (u_temp > 0.0) {
                 temp_adjust = vec3(u_temp, 0.0, -u_temp);
-            } else { // 寒色
+            } else {
                 temp_adjust = vec3(u_temp, 0.0, -u_temp);
             }
             final_color.rgb += temp_adjust;
 
-            // コントラストと彩度を強調
             final_color.rgb = (final_color.rgb - 0.5) * u_contrast + 0.5;
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
             final_color.rgb = mix(vec3(luma), final_color.rgb, u_saturation);
@@ -107,7 +105,15 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     function startCamera() {
-        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: currentFacingMode
+            }
+        };
+
+        navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
@@ -126,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         }
         
-        // 💡 変更点: マウスの位置からフィルターパラメータを計算
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const dist = Math.sqrt(Math.pow(mousePos.x * canvas.width - centerX, 2) + Math.pow((1 - mousePos.y) * canvas.height - centerY, 2));
@@ -136,7 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const directionY = ((1 - mousePos.y) * canvas.height - centerY) / maxDist;
         const directionX = (mousePos.x * canvas.width - centerX) / maxDist;
 
-        // パラメータをシェーダーに渡す
         gl.uniform1f(brightnessLocation, -directionY * effectStrength);
         gl.uniform1f(tempLocation, directionX * effectStrength);
         gl.uniform1f(contrastLocation, 1.0 + effectStrength * 0.5);
@@ -186,14 +190,26 @@ document.addEventListener('DOMContentLoaded', () => {
             modeToggleBtn.textContent = '写真編集モード';
             shutterBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
+            cameraSwitchBtn.classList.remove('hidden');
             imageUpload.classList.add('hidden');
             startCamera();
         } else {
             modeToggleBtn.textContent = 'リアルタイム撮影モード';
             shutterBtn.classList.add('hidden');
             saveBtn.classList.remove('hidden');
+            cameraSwitchBtn.classList.add('hidden');
             imageUpload.click();
         }
+    });
+    
+    cameraSwitchBtn.addEventListener('click', () => {
+        const stream = video.srcObject;
+        if (stream) {
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+        }
+        currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+        startCamera();
     });
 
     imageUpload.addEventListener('change', (e) => {
