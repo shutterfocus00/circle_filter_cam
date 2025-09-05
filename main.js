@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isCameraMode) {
             modeToggleBtn.textContent = '写真編集モード';
             shutterBtn.classList.remove('hidden');
-            saveBtn.classList.add('hidden'); // カメラモードでもフィルター後の画像を保存できるように
+            saveBtn.classList.add('hidden');
             cameraSwitchBtn.classList.remove('hidden');
             imageUpload.classList.add('hidden');
             startCamera();
@@ -236,25 +236,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     shutterBtn.addEventListener('click', () => {
-        // カメラモード時の「撮影」ボタンは、フィルター適用前のカメラ映像をダウンロード
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
-        
-        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-        
-        const dataURL = tempCanvas.toDataURL('image/png');
+        const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
-        link.download = `photo_${Date.now()}.png`;
+        link.download = `edited_photo_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     });
     
     saveBtn.addEventListener('click', () => {
-        // フィルター適用後のcanvasの内容をダウンロード
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
