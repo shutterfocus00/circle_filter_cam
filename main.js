@@ -10,13 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
-    let currentFacingMode = 'user'; // 'user' is front camera, 'environment' is rear camera
+    let currentFacingMode = 'user'; // 'user' はインカメラ, 'environment' は外カメラ
     let originalImage = null;
     let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
 
     if (!gl) {
-        alert('WebGL is not supported on this browser.');
+        alert('WebGLは現在のブラウザでサポートされていません。');
         return;
     }
 
@@ -43,9 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
             vec4 original_color = texture2D(u_image, texCoord);
             vec4 final_color = original_color;
 
+            // 明るさ調整
             float gamma = 1.0 + u_brightness * 2.0;
             final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
 
+            // 色温度調整
             vec3 temp_adjust = vec3(0.0);
             if (u_temp > 0.0) {
                 temp_adjust = vec3(u_temp, 0.0, -u_temp);
@@ -54,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             final_color.rgb += temp_adjust;
 
+            // コントラストと彩度を強調
             final_color.rgb = (final_color.rgb - 0.5) * u_contrast + 0.5;
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
             final_color.rgb = mix(vec3(luma), final_color.rgb, u_saturation);
@@ -112,6 +115,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: currentFacingMode
             }
         };
+        
+        // 既存のビデオストリームを停止
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
@@ -131,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         } else if (!isCameraMode && originalImage) {
-            // 画像編集モードでは、テクスチャを再利用して画像をレンダリング
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
@@ -207,11 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     cameraSwitchBtn.addEventListener('click', () => {
-        const stream = video.srcObject;
-        if (stream) {
-            const tracks = stream.getTracks();
-            tracks.forEach(track => track.stop());
-        }
         currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
         startCamera();
     });
