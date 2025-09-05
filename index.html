@@ -4,9 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直感カメラアプリ</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #111;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #gl-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        .btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>直感カメラアプリ</h1>
-    <p>このページは、現在開発中です。</p>
+    <div id="app-container">
+        <canvas id="gl-canvas"></canvas>
+        <video id="video-feed" style="display: none;"></video>
+        <div id="controls">
+            <button id="mode-toggle-btn" class="btn">写真編集モード</button>
+            <button id="shutter-btn" class="btn">撮影</button>
+            <button id="save-btn" class="btn hidden">保存</button>
+            <input type="file" id="image-upload" accept="image/*" class="hidden">
+        </div>
+    </div>
+    <script src="main.js"></script>
 </body>
 </html>
