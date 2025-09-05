@@ -5,30 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直感カメラアプリ</title>
     <style>
-        body {
+        /* 💡 修正点: Safariの100vh問題を回避 */
+        html, body {
+            height: 100%; /* bodyの高さをhtmlの100%に */
             margin: 0;
             padding: 0;
             overflow: hidden;
             background-color: #111;
             color: #eee;
             font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+            -webkit-overflow-scrolling: touch; /* iOSでのスクロールをスムーズに */
         }
+        
         #app-container {
-            position: relative;
+            position: fixed; /* 💡 修正点: 画面内に固定 */
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
         #gl-canvas {
             width: 100%;
             height: 100%;
+            display: block; /* 💡 修正点: canvasの余白を削除 */
         }
         #controls {
             position: absolute;
@@ -45,6 +48,7 @@
             font-size: 1rem;
             cursor: pointer;
             transition: background-color 0.3s;
+            -webkit-appearance: none; /* 💡 修正点: ボタンのデフォルトスタイルをリセット */
         }
         .btn:hover {
             background-color: rgba(255, 255, 255, 0.4);
