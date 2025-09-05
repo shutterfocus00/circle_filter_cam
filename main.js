@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shutterBtn = document.getElementById('shutter-btn');
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
-    const touchIndicator = document.getElementById('touch-indicator'); // 💡 新規追加
+    const touchIndicator = document.getElementById('touch-indicator');
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
@@ -21,61 +21,62 @@ document.addEventListener('DOMContentLoaded', () => {
     // シェーダーソースコード
     const vsSource = `
         attribute vec4 a_position;
+        varying vec2 v_texCoord;
         void main() {
             gl_Position = a_position;
+            v_texCoord = a_position.xy * 0.5 + 0.5;
         }
     `;
 
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
-        uniform vec2 u_resolution;
         uniform vec2 u_mouse_pos;
+        varying vec2 v_texCoord;
         
         void main() {
-            vec2 normalized_coord = gl_FragCoord.xy / u_resolution;
-            vec2 center_pos = u_mouse_pos;
-            
-            vec2 direction = normalized_coord - center_pos;
+            // 💡 変更点1: カメラ映像の上下反転を修正
+            vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
+            vec4 original_color = texture2D(u_image, texCoord);
+            vec4 final_color = original_color;
+
+            // サークルの中心を基準にマウスの位置を正規化
+            vec2 center = vec2(0.5, 0.5);
+            vec2 direction = u_mouse_pos - center;
             float dist_from_center = length(direction);
             
-            vec4 original_color = texture2D(u_image, normalized_coord);
-            vec4 final_color = original_color;
+            // 💡 変更点2: フィルターを写真全体に適用するためのパラメータ計算
+            // マウスの位置から写真全体にかかるフィルター強度を計算
+            float effect_strength = clamp(dist_from_center * 2.0, 0.0, 1.0); // 最大値を1.0に制限
             
-            float max_dist = 0.5;
-            
-            if (dist_from_center < max_dist) {
-                // フィルターの強度を計算（マウス位置で最大）
-                float effect_strength = dist_from_center / max_dist;
-                
-                // 上下ドラッグ: 明るさ調整
-                float brightness_factor = -direction.y * 2.0 * effect_strength;
-                float gamma = 1.0 + brightness_factor * 2.0;
-                final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
+            // 明るさ調整（上下ドラッグ）
+            float brightness_factor = -direction.y * 2.0;
+            float gamma = 1.0 + brightness_factor * effect_strength;
+            final_color.rgb = pow(final_color.rgb, vec3(1.0 / gamma));
 
-                // 左右ドラッグ: 色温度調整
-                float temp_factor = direction.x * 2.0 * effect_strength;
-                vec3 temp_adjust = vec3(0.0);
-                if (temp_factor > 0.0) { // 暖色
-                    temp_adjust = vec3(0.15, 0.0, -0.15) * temp_factor;
-                } else { // 寒色
-                    temp_adjust = vec3(-0.15, 0.0, 0.15) * -temp_factor;
-                }
-                final_color.rgb += temp_adjust;
-
-                // コントラストと彩度を強調
-                float contrast = 1.0 + effect_strength * 0.5;
-                final_color.rgb = (final_color.rgb - 0.5) * contrast + 0.5;
-                
-                float saturation = 1.0 + effect_strength * 0.3;
-                float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-                final_color.rgb = mix(vec3(luma), final_color.rgb, saturation);
+            // 色温度調整（左右ドラッグ）
+            float temp_factor = direction.x * 2.0;
+            vec3 temp_adjust = vec3(0.0);
+            if (temp_factor > 0.0) { // 暖色
+                temp_adjust = vec3(0.15, 0.0, -0.15);
+            } else { // 寒色
+                temp_adjust = vec3(-0.15, 0.0, 0.15);
             }
+            final_color.rgb += temp_adjust * effect_strength;
+
+            // コントラストと彩度を強調
+            float contrast = 1.0 + effect_strength * 0.5;
+            final_color.rgb = (final_color.rgb - 0.5) * contrast + 0.5;
+            
+            float saturation = 1.0 + effect_strength * 0.3;
+            float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+            final_color.rgb = mix(vec3(luma), final_color.rgb, saturation);
 
             gl_FragColor = final_color;
         }
     `;
 
+    // 以下のコードは変更なし
     function createShader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
@@ -149,14 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.touches) {
             x = e.touches[0].clientX;
             y = e.touches[0].clientY;
-            // タッチインジケーターを表示
             touchIndicator.style.opacity = 1;
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
         } else {
             x = e.clientX;
             y = e.clientY;
-            // マウスインジケーターは常に表示
             touchIndicator.style.opacity = 1;
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
@@ -166,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleEnd() {
-        // タッチ終了時、インジケーターを非表示に
         touchIndicator.style.opacity = 0;
     }
 
