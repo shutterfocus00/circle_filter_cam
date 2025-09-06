@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageUpload = document.getElementById('image-upload');
     const touchIndicator = document.getElementById('touch-indicator');
     const circleOverlay = document.getElementById('circle-overlay');
-    const controls = document.getElementById('controls');
     const gl = canvas.getContext('webgl');
 
     const filterIconTop = document.getElementById('filter-icon-top');
@@ -16,30 +15,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
 
-    const state = {
-        isCameraMode: true,
-        currentFacingMode: 'environment',
-        originalImage: null,
-        texture: null,
-        isCapturing: false,
-        filterValues: {
-            brightness: 0.0,
-            temp: 0.0,
-            contrast: 0.0,
-            saturation: 0.0,
-            fade: 0.0,
-            hue_shift: 0.0
-        },
-        isTouching: false,
-        touchPoint: null,
-    };
+    let isCameraMode = true;
+    let currentFacingMode = 'environment';
+    let originalImage = null;
+    let texture = null;
+    let isCapturing = false;
+    let lastProcessedPos = null;
 
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
         return;
     }
-    
-    // WebGLシェーダーコードは変更なし
+
     const vsSource = `
         attribute vec4 a_position;
         varying vec2 v_texCoord;
@@ -188,8 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fadeLocation = gl.getUniformLocation(program, 'u_fade');
     const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
 
-    state.texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, state.texture);
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -199,13 +186,12 @@ document.addEventListener('DOMContentLoaded', () => {
             video: {
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
-                facingMode: state.currentFacingMode
+                facingMode: currentFacingMode
             }
         };
-
+        
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
-            video.srcObject = null; // ストリームを明示的にクリア
         }
 
         navigator.mediaDevices.getUserMedia(constraints)
@@ -213,62 +199,98 @@ document.addEventListener('DOMContentLoaded', () => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
+                    // カメラが起動したらリアルタイムモードを確定
+                    isCameraMode = true; 
+                    updateModeUI();
                     requestAnimationFrame(render);
                 };
             })
             .catch(err => {
-                const message = 'カメラへのアクセスが拒否されました。ブラウザの設定からカメラの使用を許可してください。';
-                alert(message);
-                console.error(err);
-                state.isCameraMode = false;
+                alert('カメラへのアクセスが拒否されました: ' + err);
+                isCameraMode = false;
                 updateModeUI();
                 imageUpload.click();
             });
     }
 
-    function updateFilterIcons(values) {
-        const { brightness, temp, contrast, saturation, fade, hue_shift } = values;
+    function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
+        // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = `mix(var(--base-color), var(--bright-color), ${brightnessIntensity})`;
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
+
+        // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
         filterIconBottom.style.color = `mix(var(--base-color), var(--saturation-color), ${bottomIntensity})`;
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
+        
+        // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
         filterIconLeft.style.color = `mix(var(--base-color), var(--cool-color), ${hueShiftIntensity})`;
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
+
+        // 色温度 (Temperature) - right
         const tempIntensity = Math.abs(temp);
         filterIconRight.style.color = `mix(var(--base-color), var(--warm-color), ${tempIntensity})`;
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
     function render() {
-        if (state.isCameraMode && video.readyState >= 2) {
-            gl.bindTexture(gl.TEXTURE_2D, state.texture);
+        if (isCameraMode && video.readyState >= 2) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-        } else if (!state.isCameraMode && state.originalImage) {
-            gl.bindTexture(gl.TEXTURE_2D, state.texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, state.originalImage);
+        } else if (!isCameraMode && originalImage) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
+        }
+        
+        let brightness = 0.0;
+        let temp = 0.0;
+        let contrast = 0.0;
+        let saturation = 0.0;
+        let fade = 0.0;
+        let hue_shift = 0.0;
+        
+        if (lastProcessedPos) {
+            const circleRect = circleOverlay.getBoundingClientRect();
+            const circleCenterX = circleRect.left + circleRect.width / 2;
+            const circleCenterY = circleRect.top + circleRect.height / 2;
+            const circleRadius = circleRect.width / 2;
+
+            const normalizedX = (lastProcessedPos.x - circleCenterX) / circleRadius;
+            const normalizedY = (lastProcessedPos.y - circleCenterY) / circleRadius;
+
+            brightness = -normalizedY;
+            temp = normalizedX;
+            
+            const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+            const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
+
+            contrast = clampedDistFromCenter;
+            saturation = clampedDistFromCenter;
+            fade = clampedDistFromCenter * 0.5;
+            hue_shift = normalizedX * 0.5;
         }
 
-        const { brightness, temp, contrast, saturation, fade, hue_shift } = state.filterValues;
         gl.uniform1f(brightnessLocation, brightness);
         gl.uniform1f(tempLocation, temp);
         gl.uniform1f(contrastLocation, contrast);
         gl.uniform1f(saturationLocation, saturation);
         gl.uniform1f(fadeLocation, fade);
         gl.uniform1f(hueShiftLocation, hue_shift);
+
+        updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
         
-        gl.drawArrays(gl.TRIANGLES, 0, 0, 6);
-        
-        if (state.isCapturing) {
+        if (isCapturing) {
             captureFrame();
-            state.isCapturing = false;
+            isCapturing = false;
         }
 
         requestAnimationFrame(render);
     }
-
+    
     function captureFrame() {
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -279,17 +301,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(link);
     }
 
+    let isTouching = false;
+    let touchPoint = null;
+
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
             return;
         }
-        state.isTouching = true;
+        isTouching = true;
         handleMove(e);
     }
     
     function handleMove(e) {
-        if (!state.isTouching) return;
+        if (!isTouching) return;
 
         let x, y;
         if (e.touches) {
@@ -304,36 +329,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const circleCenterX = circleRect.left + circleRect.width / 2;
         const circleCenterY = circleRect.top + circleRect.height / 2;
         const circleRadius = circleRect.width / 2;
-        const dx = x - circleCenterX;
-        const dy = y - circleCenterY;
-        const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+        const distFromCenter = Math.sqrt(
+            Math.pow(x - circleCenterX, 2) + 
+            Math.pow(y - circleCenterY, 2)
+        );
 
         if (distFromCenter <= circleRadius) {
-            state.touchPoint = { x, y };
+            touchPoint = { x, y };
+            touchIndicator.style.left = `${x}px`;
+            touchIndicator.style.top = `${y}px`;
         } else {
-            const angle = Math.atan2(dy, dx);
+            const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
             const clampedX = circleCenterX + circleRadius * Math.cos(angle);
             const clampedY = circleCenterY + circleRadius * Math.sin(angle);
-            state.touchPoint = { x: clampedX, y: clampedY };
+            touchPoint = { x: clampedX, y: clampedY };
+            
+            touchIndicator.style.left = `${clampedX}px`;
+            touchIndicator.style.top = `${clampedY}px`;
         }
-        
-        touchIndicator.style.left = `${state.touchPoint.x}px`;
-        touchIndicator.style.top = `${state.touchPoint.y}px`;
         touchIndicator.style.opacity = 1;
+        lastProcessedPos = touchPoint;
 
-        const normalizedX = (state.touchPoint.x - circleCenterX) / circleRadius;
-        const normalizedY = (state.touchPoint.y - circleCenterY) / circleRadius;
-        
-        state.filterValues.brightness = -normalizedY;
-        state.filterValues.temp = normalizedX;
-        const clampedDistFromCenter = Math.min(distFromCenter / circleRadius, 1.0); 
-        state.filterValues.contrast = clampedDistFromCenter;
-        state.filterValues.saturation = clampedDistFromCenter;
-        state.filterValues.fade = clampedDistFromCenter * 0.5;
-        state.filterValues.hue_shift = normalizedX * 0.5;
-
-        updateFilterIcons(state.filterValues);
-        
         if (navigator.vibrate) {
             const normalizedDist = distFromCenter / circleRadius;
             if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
@@ -345,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleEnd() {
-        state.isTouching = false;
+        isTouching = false;
         touchIndicator.style.opacity = 0;
     }
     
@@ -361,40 +378,55 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
-        state.filterValues = { brightness: 0.0, temp: 0.0, contrast: 0.0, saturation: 0.0, fade: 0.0, hue_shift: 0.0 };
-        updateFilterIcons(state.filterValues);
+        lastProcessedPos = null;
+        touchPoint = null;
+        gl.uniform1f(brightnessLocation, 0.0);
+        gl.uniform1f(tempLocation, 0.0);
+        gl.uniform1f(contrastLocation, 0.0);
+        gl.uniform1f(saturationLocation, 0.0);
+        gl.uniform1f(fadeLocation, 0.0);
+        gl.uniform1f(hueShiftLocation, 0.0);
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
     });
     window.dispatchEvent(new Event('resize'));
 
     function updateModeUI() {
-        if (state.isCameraMode) {
+        if (isCameraMode) {
             modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
             modeToggleBtn.setAttribute('title', '写真編集モード');
             shutterBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
             cameraSwitchBtn.classList.remove('hidden');
-            imageUpload.classList.add('hidden-file-input');
-            startCamera();
+            imageUpload.classList.add('hidden');
         } else {
             modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
             modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
             shutterBtn.classList.add('hidden');
             saveBtn.classList.remove('hidden');
             cameraSwitchBtn.classList.add('hidden');
-            imageUpload.classList.remove('hidden-file-input');
+            imageUpload.classList.remove('hidden');
             imageUpload.click();
         }
-        state.filterValues = { brightness: 0.0, temp: 0.0, contrast: 0.0, saturation: 0.0, fade: 0.0, hue_shift: 0.0 };
-        updateFilterIcons(state.filterValues);
+        lastProcessedPos = null;
+        gl.uniform1f(brightnessLocation, 0.0);
+        gl.uniform1f(tempLocation, 0.0);
+        gl.uniform1f(contrastLocation, 0.0);
+        gl.uniform1f(saturationLocation, 0.0);
+        gl.uniform1f(fadeLocation, 0.0);
+        gl.uniform1f(hueShiftLocation, 0.0);
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
     }
 
     modeToggleBtn.addEventListener('click', () => {
-        state.isCameraMode = !state.isCameraMode;
+        isCameraMode = !isCameraMode;
         updateModeUI();
+        if (isCameraMode) {
+            startCamera();
+        }
     });
     
     cameraSwitchBtn.addEventListener('click', () => {
-        state.currentFacingMode = (state.currentFacingMode === 'user') ? 'environment' : 'user';
+        currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
         startCamera();
     });
 
@@ -405,31 +437,34 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
-                    state.originalImage = img;
-                    gl.bindTexture(gl.TEXTURE_2D, state.texture);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, state.originalImage);
+                    originalImage = img;
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
                     render();
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         } else {
-            state.isCameraMode = true;
+            isCameraMode = true;
             updateModeUI();
+            startCamera();
         }
     });
 
     shutterBtn.addEventListener('click', () => {
-        if (state.isCameraMode) {
-            state.isCapturing = true;
+        if (isCameraMode) {
+            isCapturing = true;
         }
     });
     
     saveBtn.addEventListener('click', () => {
-        if (!state.isCameraMode) {
-            state.isCapturing = true;
+        if (!isCameraMode) {
+            isCapturing = true;
         }
     });
 
-    updateModeUI();
+    // 初期起動時の処理を修正
+    // ページロード時にカメラの起動を試行する
+    startCamera();
 });
