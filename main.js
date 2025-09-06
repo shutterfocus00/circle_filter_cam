@@ -183,12 +183,17 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderVideoFrame() {
         if (!isCameraMode || !video.srcObject) return;
         try {
+            await video.play();
             const bitmap = await createImageBitmap(video);
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
             bitmap.close();
         } catch (e) {
-            console.error("ImageBitmapの作成に失敗しました:", e);
+            console.error("ImageBitmapの作成またはvideo.play()に失敗しました:", e);
+            if (isCameraMode) {
+                console.log("カメラの再起動を試みます。");
+                await startCamera();
+            }
         }
         video.requestVideoFrameCallback(renderVideoFrame);
     }
@@ -208,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
-            // ⭐ 修正箇所: video.play() が確実に完了してから次の処理へ
             await video.play();
             updateModeUI();
             video.requestVideoFrameCallback(renderVideoFrame);
@@ -433,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
-            // ⭐ 修正箇所: ここでカメラを起動する
             startCamera();
         } else {
             if (video.srcObject) {
@@ -452,7 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file) {
             isCameraMode = true;
-            // ⭐ 修正箇所: ここでカメラを起動する
             startCamera();
             return;
         }
@@ -483,7 +485,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初期化と描画ループの開始
     initWebGL();
     requestAnimationFrame(render);
-    
-    // ⭐ 修正箇所: ページの読み込み時にカメラを自動起動しない
-    // startCamera();
 });
