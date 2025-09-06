@@ -24,7 +24,7 @@ html, body {
     height: 100%;
     overflow: hidden;
     background-color: var(--main-bg);
-    touch-action: none; /* Disable default touch actions */
+    touch-action: none;
 }
 
 /* App Container */
@@ -36,32 +36,32 @@ html, body {
     flex-direction: column;
 }
 
-/* プレビュー領域 - flex-growを5に設定 */
+/* プレビュー領域 - flex-growを15に設定 */
 #preview-area {
     position: relative;
-    flex: 5; /* 画面全体の5/7を占有 */
+    flex: 15; /* 画面全体の15/18を占有 */
     width: 100%;
-    display: flex; /* 中央に配置するためにFlexboxを使用 */
+    display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden; /* はみ出した部分は非表示 */
+    overflow: hidden;
 }
 
 /* キャンバスとビデオをプレビューエリアの中央に配置 */
 #gl-canvas, #video-feed {
-    position: relative; /* absoluteからrelativeに変更 */
+    position: relative;
     width: 100%;
     height: 100%;
-    object-fit: contain; /* アスペクト比を維持し、全体を表示 */
+    object-fit: contain;
     z-index: 1;
 }
 
-/* フィルター操作領域 - flex-growを1に設定 */
+/* フィルター操作領域 - flex-growを2に設定 */
 #filter-area {
     position: relative;
-    flex: 1; /* 画面全体の1/7を占有 */
+    flex: 2; /* 画面全体の2/18を占有 */
     width: 100%;
-    padding: 20px;
+    padding: 10px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -70,9 +70,8 @@ html, body {
 }
 
 #filter-rectangle {
-    width: 90%;
-    max-width: 400px;
-    height: 100%; /* 親要素に合わせる */
+    width: 100%;
+    height: 100%;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
@@ -85,7 +84,7 @@ html, body {
 #filter-icon-left,
 #filter-icon-right {
     position: absolute;
-    font-size: 2em;
+    font-size: 1.5em;
     text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
     transition: transform 0.2s ease, color 0.2s ease;
 }
@@ -117,8 +116,8 @@ html, body {
 /* Touch Indicator */
 #touch-indicator {
     position: absolute;
-    width: 50px;
-    height: 50px;
+    width: 40px;
+    height: 40px;
     background: white;
     border-radius: 50%;
     border: 2px solid var(--accent-color);
@@ -127,17 +126,17 @@ html, body {
     transition: opacity 0.2s ease-in-out;
     opacity: 0;
     z-index: 10;
-    transform: translate(-50%, -50%); /* Centering the circle */
+    transform: translate(-50%, -50%);
 }
 
 /* 撮影・コントロール領域 - flex-growを1に設定 */
 #control-area {
     display: flex;
-    flex: 1; /* 画面全体の1/7を占有 */
-    justify-content: space-around;
+    flex: 1; /* 画面全体の1/18を占有 */
+    justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 20px;
+    padding: 0 20px;
     background-color: rgba(0, 0, 0, 0.8);
     z-index: 3;
 }
@@ -156,6 +155,12 @@ button {
     -webkit-tap-highlight-color: transparent;
 }
 
+#shutter-btn, #save-btn {
+    width: 80px;
+    height: 80px;
+    border-width: 4px;
+}
+
 button:active {
     transform: scale(0.95);
     background: rgba(60, 60, 60, 0.9);
@@ -167,11 +172,11 @@ button:active {
     stroke: var(--primary-color);
 }
 
-.hidden {
-    display: none;
-}
-
 #shutter-btn .icon {
     stroke: none;
     fill: var(--primary-color);
+}
+
+.hidden {
+    display: none;
 }
