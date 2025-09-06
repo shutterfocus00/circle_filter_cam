@@ -1,194 +1,179 @@
-html, body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    background-color: #111;
-    color: #eee;
-    font-family: sans-serif;
-    -webkit-overflow-scrolling: touch;
-    /* 色の変化に使う変数を定義 */
-    --base-color: #fff;
-    --bright-color: #FFD700;
-    --warm-color: #FF4500;
-    --cool-color: #87CEEB;
-    --saturation-color: #ADFF2F;
-    --hue-color: #87CEEB; /* 新しい色相用変数 */
+/* Custom Properties */
+:root {
+    --primary-color: #f7f7f7;
+    --dark-color: #212121;
+    --main-bg: #000;
+    --accent-color: #5d5dff;
+    --bright-color: #fff;
+    --warm-color: #ff9900;
+    --saturation-color: #00ff00;
+    --hue-color: #0088ff;
 }
 
+/* Reset and Base Styles */
+* {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--primary-color);
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--main-bg);
+    touch-action: none; /* Disable default touch actions */
+}
+
+/* App Container */
 #app-container {
-    position: fixed;
-    top: 0;
-    left: 0;
+    position: relative;
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    touch-action: none;
 }
+
 #gl-canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-
-#circle-overlay {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 70vmin;
-    height: 70vmin;
-    border: 3px solid rgba(255, 255, 255, 0.7);
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    pointer-events: none;
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.circle-line {
-    position: absolute;
-    background-color: rgba(255, 255, 255, 0.3);
-    pointer-events: none;
-}
-.circle-line.vertical {
-    width: 1px;
-    height: 100%;
     top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-}
-.circle-line.horizontal {
-    width: 100%;
-    height: 1px;
-    top: 50%;
     left: 0;
-    transform: translateY(-50%);
-}
-
-.filter-icon {
-    position: absolute;
-    pointer-events: none;
-    transition: transform 0.2s ease-out, color 0.2s ease-out;
-    /* transitionを追加 */
-}
-.filter-icon .icon {
-    width: 28px;
-    height: 28px;
-    stroke: currentColor;
-    fill: none;
-}
-
-/* アイコンの位置を調整 */
-.filter-icon.top { top: 7%; left: 50%; transform: translateX(-50%) scale(0.8); }
-.filter-icon.bottom { bottom: 7%; left: 50%; transform: translateX(-50%) scale(0.8); }
-.filter-icon.left { left: 7%; top: 50%; transform: translateY(-50%) scale(0.8); }
-.filter-icon.right { right: 7%; top: 50%; transform: translateY(-50%) scale(0.8); }
-
-
-#touch-indicator {
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    background-color: rgba(255, 255, 255, 0.8);
-    border: 1px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-    transform: translate(-50%, -50%);
-}
-
-#controls {
-    position: absolute;
-    bottom: 20px;
     width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+#video-feed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+}
+
+/* UI Layer */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
+    padding: 20px;
     box-sizing: border-box;
 }
 
-#left-controls, #right-controls {
-    display: flex;
-    gap: 10px;
-}
-#left-controls {
-    flex-grow: 1;
-    justify-content: flex-start;
-}
-#right-controls {
-    flex-grow: 1;
-    justify-content: flex-end;
-}
-
-.shutter-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#shutter-btn {
-    background-color: rgba(255, 255, 255, 0.2);
-    border: 2px solid #fff;
-    color: #fff;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    font-size: 0;
-    cursor: pointer;
-    transition: transform 0.1s ease-out, background-color 0.3s;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+/* Filter Rectangle */
+#filter-rectangle {
     position: relative;
-    -webkit-tap-highlight-color: transparent;
+    width: 90%;
+    max-width: 400px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    margin: 20px 0;
+    touch-action: none;
 }
 
-#shutter-btn:active {
-    transform: scale(0.9);
-}
-
-.shutter-btn-inner {
+#filter-icon-top,
+#filter-icon-bottom,
+#filter-icon-left,
+#filter-icon-right {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 70%;
-    height: 70%;
-    background-color: #fff;
-    border-radius: 50%;
-    pointer-events: none;
+    font-size: 2em;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.btn {
-    background-color: rgba(255, 255, 255, 0.2);
-    border: 2px solid #fff;
-    color: #fff;
+#filter-icon-top {
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#filter-icon-bottom {
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#filter-icon-left {
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#filter-icon-right {
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Touch Indicator */
+#touch-indicator {
+    position: absolute;
     width: 50px;
     height: 50px;
-    padding: 0;
+    background: white;
     border-radius: 50%;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    -webkit-appearance: none;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-    margin: 0 5px;
+    border: 2px solid var(--accent-color);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+    opacity: 0;
+    z-index: 10;
+    transform: translate(-50%, -50%); /* Centering the circle */
+}
+
+/* Control Panel */
+#control-panel {
     display: flex;
-    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    padding: 10px 0;
+}
+
+button {
+    background: rgba(40, 40, 40, 0.8);
+    border: 2px solid var(--primary-color);
+    border-radius: 50%;
+    width: 70px;
+    height: 70px;
+    display: flex;
     justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
     -webkit-tap-highlight-color: transparent;
 }
-.btn:hover {
-    background-color: rgba(255, 255, 255, 0.4);
+
+button:active {
+    transform: scale(0.95);
+    background: rgba(60, 60, 60, 0.9);
 }
+
+.icon {
+    width: 30px;
+    height: 30px;
+    stroke: var(--primary-color);
+}
+
 .hidden {
     display: none;
 }
-.icon {
-    width: 24px;
-    height: 24px;
+
+#shutter-btn .icon {
+    stroke: none;
+    fill: var(--primary-color);
 }
