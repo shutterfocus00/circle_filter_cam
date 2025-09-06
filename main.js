@@ -179,10 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return shader;
     }
 
-    // ⭐ 修正箇所: requestVideoFrameCallback を video.play() の成功後に設定する
+    // カメラの映像をWebGLテクスチャに変換するループ
     async function renderVideoFrame() {
         if (!isCameraMode || !video.srcObject) return;
-
         try {
             const bitmap = await createImageBitmap(video);
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -191,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.error("ImageBitmapの作成に失敗しました:", e);
         }
-        
         video.requestVideoFrameCallback(renderVideoFrame);
     }
 
@@ -200,7 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
-
         const constraints = {
             video: {
                 width: { ideal: 1280 },
@@ -208,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: currentFacingMode
             }
         };
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
@@ -458,7 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
             startCamera();
             return;
         }
-
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
