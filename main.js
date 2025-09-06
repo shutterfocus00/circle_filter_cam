@@ -115,9 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
             final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
 
-            float brightness_factor = 1.0 + u_brightness * 0.5;
-            final_color.rgb = pow(final_color.rgb, vec3(1.0 / brightness_factor));
-
+            // 修正箇所: 明るさ調整をより強く、露出に近い効果に
+            float exposure = u_brightness * 2.0;
+            final_color.rgb *= pow(2.0, exposure);
+            
             vec3 color_temp_matrix = vec3(1.0);
             if (u_temp > 0.0) {
                 color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2);
@@ -224,8 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // ⭐ 起動後すぐにフレーム更新ループを開始
             video.requestVideoFrameCallback(renderVideoFrame);
-            // ⭐ ビデオが再生可能になったことをフラグで明確に
-            isVideoPlaying = true;
             updateModeUI();
 
         } catch (err) {
@@ -244,7 +243,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
-        // ... (省略: この部分は変更なし) ...
+        const brightnessIntensity = Math.abs(brightness);
+        filterIconTop.style.color = getCSSVar('--bright-color');
+        filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
+
+        const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
+        filterIconBottom.style.color = getCSSVar('--saturation-color');
+        filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
+        
+        const hueShiftIntensity = Math.abs(hue_shift);
+        filterIconLeft.style.color = getCSSVar('--hue-color');
+        filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
+
+        const tempIntensity = Math.abs(temp);
+        filterIconRight.style.color = getCSSVar('--warm-color');
+        filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
     // ⭐ WebGLの描画ループ（フィルターパラメータの更新と描画）
@@ -253,8 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
-        
-        // ... (省略: パラメータ計算とuniform設定は変更なし) ...
         
         let brightness = 0.0;
         let temp = 0.0;
@@ -310,8 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(render);
     }
     
-    // ... (省略: captureFrame, handleStart, handleMove, handleEnd, resizeイベントは変更なし) ...
-
+    // ⭐ スクリーンショットを保存
     function captureFrame() {
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -322,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(link);
     }
 
+    // タッチイベントの処理
     let isTouching = false;
     let touchPoint = null;
 
@@ -395,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('touchmove', handleMove, { passive: false });
     canvas.addEventListener('touchend', handleEnd);
 
+    // ウィンドウリサイズイベント
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -437,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilterIcons(0, 0, 0, 0, 0, 0);
     }
 
-    // ⭐ イベントリスナーの整理
+    // イベントリスナー
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -446,7 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
-            isVideoPlaying = false;
             imageUpload.click();
         }
     });
@@ -456,11 +467,9 @@ document.addEventListener('DOMContentLoaded', () => {
         startCamera();
     });
 
-    // ⭐ 画像読み込みロジックを非同期関数に整理
     imageUpload.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) {
-            // ファイル選択がキャンセルされた場合
             isCameraMode = true;
             startCamera();
             return;
@@ -495,4 +504,3 @@ document.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(render);
     startCamera();
 });
-
