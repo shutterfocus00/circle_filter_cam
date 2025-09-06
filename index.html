@@ -10,11 +10,16 @@
     <div id="app-container">
         <canvas id="gl-canvas"></canvas>
         <video id="video-feed" style="display: none;"></video>
-        <div id="circle-overlay"></div>
+        <div id="circle-overlay">
+            <div class="circle-line vertical"></div>
+            <div class="circle-line horizontal"></div>
+            <div class="filter-icon top">💡</div> <div class="filter-icon bottom">💡</div>
+            <div class="filter-icon left">🌡️</div> <div class="filter-icon right">🌡️</div>
+        </div>
         <div id="touch-indicator"></div>
         <div id="controls">
             <div id="left-controls">
-                <button id="mode-toggle-btn" class="btn">写真編集モード</button>
+                <button id="mode-toggle-btn" class="btn">📸 リアルタイム撮影モード</button>
             </div>
             <div class="shutter-container">
                 <button id="shutter-btn">
@@ -22,8 +27,8 @@
                 </button>
             </div>
             <div id="right-controls">
-                <button id="camera-switch-btn" class="btn">カメラ切替</button>
-                <button id="save-btn" class="btn hidden">保存</button>
+                <button id="camera-switch-btn" class="btn">🔄</button>
+                <button id="save-btn" class="btn hidden">💾 保存</button>
                 <input type="file" id="image-upload" accept="image/*" class="hidden">
             </div>
         </div>
