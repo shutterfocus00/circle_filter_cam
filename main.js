@@ -466,8 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // アプリ起動時にカメラの起動を試行
-    startCamera();
     // 描画ループは一度だけ開始
     requestAnimationFrame(render);
+    // アプリ起動時にカメラの起動を試行
+    startCamera();
 });
