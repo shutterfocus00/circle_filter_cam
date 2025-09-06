@@ -1,20 +1,41 @@
-/* 全体のレイアウトをFlexboxで設定 */
-body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    width: 100vw;
-    margin: 0;
-    overflow: hidden;
-    background-color: #000;
+/* Custom Properties */
+:root {
+    --primary-color: #f7f7f7;
+    --dark-color: #212121;
+    --main-bg: #000;
+    --accent-color: #5d5dff;
+    --bright-color: #fff;
+    --warm-color: #ff9900;
+    --saturation-color: #00ff00;
+    --hue-color: #0088ff;
 }
 
-#app-container {
-    display: flex;
-    flex-direction: column; /* 縦方向に要素を並べる */
+/* Reset and Base Styles */
+* {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--primary-color);
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
     width: 100%;
     height: 100%;
+    overflow: hidden;
+    background-color: var(--main-bg);
+    touch-action: none; /* Disable default touch actions */
+}
+
+/* App Container */
+#app-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
 }
 
 /* プレビュー領域 */
@@ -25,13 +46,14 @@ body {
     overflow: hidden;
 }
 
-#gl-canvas {
+#gl-canvas, #video-feed {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     object-fit: contain; /* アスペクト比を維持し、全体を表示 */
+    z-index: 1;
 }
 
 /* フィルター操作領域 */
@@ -42,19 +64,69 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: rgba(0, 0, 0, 0.5); /* 視覚的な分離のため */
+    background-color: rgba(0, 0, 0, 0.5);
     z-index: 2;
 }
 
 #filter-rectangle {
     width: 90%;
     max-width: 400px;
-    height: 150px; /* 縦のサイズを調整 */
+    height: 150px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     position: relative;
     touch-action: none;
+}
+
+#filter-icon-top,
+#filter-icon-bottom,
+#filter-icon-left,
+#filter-icon-right {
+    position: absolute;
+    font-size: 2em;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+#filter-icon-top {
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#filter-icon-bottom {
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#filter-icon-left {
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#filter-icon-right {
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Touch Indicator */
+#touch-indicator {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background: white;
+    border-radius: 50%;
+    border: 2px solid var(--accent-color);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+    opacity: 0;
+    z-index: 10;
+    transform: translate(-50%, -50%); /* Centering the circle */
 }
 
 /* 撮影・コントロール領域 */
@@ -64,9 +136,40 @@ body {
     align-items: center;
     width: 100%;
     padding: 20px;
-    background-color: rgba(0, 0, 0, 0.8); /* 視覚的な分離のため */
+    background-color: rgba(0, 0, 0, 0.8);
     z-index: 3;
 }
 
-/* その他のUI要素のスタイルは変更なし */
-/* ... (既存の style.css の残りの部分) ... */
+button {
+    background: rgba(40, 40, 40, 0.8);
+    border: 2px solid var(--primary-color);
+    border-radius: 50%;
+    width: 70px;
+    height: 70px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+    transform: scale(0.95);
+    background: rgba(60, 60, 60, 0.9);
+}
+
+.icon {
+    width: 30px;
+    height: 30px;
+    stroke: var(--primary-color);
+}
+
+.hidden {
+    display: none;
+}
+
+#shutter-btn .icon {
+    stroke: none;
+    fill: var(--primary-color);
+}
