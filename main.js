@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float u_saturation;
         uniform float u_fade;
         uniform float u_hue_shift;
+        uniform vec4 u_crop_rect;
         varying vec2 v_texCoord;
         
         vec3 rgb2hsl(vec3 color) {
@@ -107,8 +108,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         void main() {
-            vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
-            vec4 original_color = texture2D(u_image, texCoord);
+            vec2 texCoord = v_texCoord;
+            
+            // クロップ処理を追加
+            vec2 croppedTexCoord = u_crop_rect.xy + texCoord * u_crop_rect.zw;
+            if (croppedTexCoord.x < 0.0 || croppedTexCoord.x > 1.0 ||
+                croppedTexCoord.y < 0.0 || croppedTexCoord.y > 1.0) {
+                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); // 範囲外は黒
+                return;
+            }
+            
+            vec4 original_color = texture2D(u_image, vec2(croppedTexCoord.x, 1.0 - croppedTexCoord.y));
             vec4 final_color = original_color;
 
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
@@ -184,12 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isCameraMode || !video.srcObject) return;
         try {
             await video.play();
-            const bitmap = await createImageBitmap(video);
             gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-            bitmap.close();
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         } catch (e) {
-            console.error("ImageBitmapの作成またはvideo.play()に失敗しました:", e);
+            console.error("video.play()に失敗しました:", e);
             if (isCameraMode) {
                 console.log("カメラの再起動を試みます。");
                 await startCamera();
@@ -205,8 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const constraints = {
             video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
+                width: { ideal: window.innerWidth },
+                height: { ideal: window.innerHeight },
                 facingMode: currentFacingMode
             }
         };
@@ -249,11 +257,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
-        if (!isCameraMode && originalImage) {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
-        }
-        
         let brightness = 0.0;
         let temp = 0.0;
         let contrast = 0.0;
@@ -267,6 +270,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
         const fadeLocation = gl.getUniformLocation(program, 'u_fade');
         const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
+        const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
+
+        const previewArea = document.getElementById('preview-area');
+        const videoAspect = video.videoWidth / video.videoHeight;
+        const previewAspect = previewArea.offsetWidth / previewArea.offsetHeight;
+
+        let cropX = 0, cropY = 0, cropW = 1, cropH = 1;
+        if (videoAspect > previewAspect) { // ビデオが横長
+            cropW = previewAspect / videoAspect;
+            cropX = (1.0 - cropW) / 2.0;
+        } else { // ビデオが縦長
+            cropH = videoAspect / previewAspect;
+            cropY = (1.0 - cropH) / 2.0;
+        }
+
+        gl.uniform4f(cropRectLocation, cropX, cropY, cropW, cropH);
+
+        if (!isCameraMode && originalImage) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
+        }
         
         if (lastProcessedPos) {
             // 長方形内の正規化された座標からフィルター値を計算
@@ -308,7 +332,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function captureFrame() {
-        const dataURL = canvas.toDataURL('image/png');
+        // 等倍表示のクロップ設定を適用して撮影
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        const previewArea = document.getElementById('preview-area');
+        
+        const source = isCameraMode ? video : originalImage;
+        const sourceAspect = source.videoWidth / source.videoHeight || source.width / source.height;
+        const previewAspect = previewArea.offsetWidth / previewArea.offsetHeight;
+        
+        let sx = 0, sy = 0, sWidth = source.videoWidth || source.width, sHeight = source.videoHeight || source.height;
+        let dx = 0, dy = 0, dWidth = tempCanvas.width, dHeight = tempCanvas.height;
+        
+        // ソース画像をプレビュー画面と同じアスペクト比でクロップ
+        if (sourceAspect > previewAspect) {
+            sWidth = sHeight * previewAspect;
+            sx = ((source.videoWidth || source.width) - sWidth) / 2;
+        } else {
+            sHeight = sWidth / previewAspect;
+            sy = ((source.videoHeight || source.height) - sHeight) / 2;
+        }
+        
+        tempCanvas.width = sWidth;
+        tempCanvas.height = sHeight;
+        
+        tempCtx.drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+
+        const dataURL = tempCanvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
         link.download = `filtered_photo_${Date.now()}.png`;
@@ -324,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
             return;
         }
+        e.preventDefault(); // デフォルトのタッチアクションを抑制
         isTouching = true;
         handleMove(e);
     }
