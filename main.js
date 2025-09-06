@@ -433,6 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
+            // ⭐ 修正箇所: ここでカメラを起動する
             startCamera();
         } else {
             if (video.srcObject) {
@@ -451,6 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file) {
             isCameraMode = true;
+            // ⭐ 修正箇所: ここでカメラを起動する
             startCamera();
             return;
         }
@@ -481,5 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初期化と描画ループの開始
     initWebGL();
     requestAnimationFrame(render);
-    startCamera();
+    
+    // ⭐ 修正箇所: ページの読み込み時にカメラを自動起動しない
+    // startCamera();
 });
