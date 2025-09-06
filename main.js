@@ -93,17 +93,21 @@ function initGL() {
 }
 
 function startCamera() {
+    // iOS Safari 対策：属性を最初に付与
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("muted", "true");
+    video.setAttribute("autoplay", "true");
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
         .then(stream => {
             video.srcObject = stream;
-            video.setAttribute("playsinline", "true"); // iOS Safari 必須
-            video.setAttribute("muted", "true");       // 自動再生のため必須
-            video.setAttribute("autoplay", "true");
 
+            // ユーザー操作なしでも再生されるように try-catch
             video.play().catch(err => console.warn("video.play() 失敗:", err));
 
-            // 最初のフレームが来たらレンダリング開始
-            video.onloadeddata = () => {
+            // onplaying まで待つと黒画面を回避しやすい
+            video.onplaying = () => {
+                console.log("🎥 Video is playing");
                 isVideoPlaying = true;
                 render();
             };
