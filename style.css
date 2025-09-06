@@ -36,10 +36,10 @@ html, body {
     flex-direction: column;
 }
 
-/* プレビュー領域 - flex-growを5に設定 */
+/* プレビュー領域 - flex-growを10に設定 */
 #preview-area {
     position: relative;
-    flex: 5; /* 画面全体の5/7を占有 */
+    flex: 10; /* 画面全体の10/12を占有 */
     width: 100%;
     display: flex; /* 中央に配置するためにFlexboxを使用 */
     justify-content: center;
@@ -59,9 +59,9 @@ html, body {
 /* フィルター操作領域 - flex-growを1に設定 */
 #filter-area {
     position: relative;
-    flex: 1; /* 画面全体の1/7を占有 */
+    flex: 1; /* 画面全体の1/12を占有 */
     width: 100%;
-    padding: 20px;
+    padding: 10px; /* パディングを少し減らして調整 */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -70,9 +70,8 @@ html, body {
 }
 
 #filter-rectangle {
-    width: 90%;
-    max-width: 400px;
-    height: 100%; /* 親要素に合わせる */
+    width: 100%; /* 横幅を100%に設定 */
+    height: 100%;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
@@ -85,7 +84,7 @@ html, body {
 #filter-icon-left,
 #filter-icon-right {
     position: absolute;
-    font-size: 2em;
+    font-size: 1.5em; /* アイコンサイズを少し小さく調整 */
     text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
     transition: transform 0.2s ease, color 0.2s ease;
 }
@@ -117,8 +116,8 @@ html, body {
 /* Touch Indicator */
 #touch-indicator {
     position: absolute;
-    width: 50px;
-    height: 50px;
+    width: 40px; /* サイズを調整 */
+    height: 40px;
     background: white;
     border-radius: 50%;
     border: 2px solid var(--accent-color);
@@ -133,14 +132,32 @@ html, body {
 /* 撮影・コントロール領域 - flex-growを1に設定 */
 #control-area {
     display: flex;
-    flex: 1; /* 画面全体の1/7を占有 */
-    justify-content: space-around;
+    flex: 1; /* 画面全体の1/12を占有 */
+    justify-content: space-between; /* 均等な間隔ではなく、両端と中央に配置 */
     align-items: center;
     width: 100%;
-    padding: 20px;
+    padding: 0 20px; /* 左右のパディングでボタンを配置 */
     background-color: rgba(0, 0, 0, 0.8);
     z-index: 3;
 }
+
+#mode-toggle-btn, #camera-switch-btn {
+    visibility: hidden; /* 仮非表示 */
+}
+
+/* 撮影エリアのボタンを中央に配置する調整 */
+#control-area .placeholder {
+    width: 70px; /* ボタンのサイズに合わせてスペーサーを配置 */
+    height: 70px;
+}
+
+#control-area #shutter-btn, #control-area #save-btn {
+    order: 2; /* 撮影ボタンを中央に */
+    margin: 0 auto; /* 中央寄せ */
+}
+
+#control-area #mode-toggle-btn { order: 1; visibility: visible; }
+#control-area #camera-switch-btn { order: 3; visibility: visible; }
 
 button {
     background: rgba(40, 40, 40, 0.8);
@@ -156,6 +173,12 @@ button {
     -webkit-tap-highlight-color: transparent;
 }
 
+#shutter-btn, #save-btn {
+    width: 80px; /* シャッターボタンを少し大きく */
+    height: 80px;
+    border-width: 4px;
+}
+
 button:active {
     transform: scale(0.95);
     background: rgba(60, 60, 60, 0.9);
@@ -167,11 +190,11 @@ button:active {
     stroke: var(--primary-color);
 }
 
-.hidden {
-    display: none;
-}
-
 #shutter-btn .icon {
     stroke: none;
     fill: var(--primary-color);
+}
+
+.hidden {
+    display: none;
 }
