@@ -115,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
             final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
 
-            // 修正箇所: 明るさ調整をより強く、露出に近い効果に
             float exposure = u_brightness * 2.0;
             final_color.rgb *= pow(2.0, exposure);
             
@@ -184,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ⭐ ビデオフレームをテクスチャとして更新する専用のループ関数
     function renderVideoFrame() {
-        if (!isCameraMode) return;
+        if (!isCameraMode || !video.srcObject) return;
 
         createImageBitmap(video)
             .then(bitmap => {
@@ -215,17 +214,20 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
-            
-            await new Promise(resolve => {
-                video.onloadedmetadata = () => {
-                    video.play();
-                    resolve();
-                };
+
+            // video.play()は非同期処理
+            video.play().then(() => {
+                // play()が成功したらフレーム更新ループを開始
+                video.requestVideoFrameCallback(renderVideoFrame);
+                updateModeUI();
+            }).catch(e => {
+                console.error('ビデオ再生に失敗しました:', e);
+                // プレイに失敗した場合でも、ユーザーにモード切替を促す
+                isCameraMode = false;
+                updateModeUI();
+                alert('カメラの起動に失敗しました。写真編集モードに切り替えます。');
+                imageUpload.click();
             });
-            
-            // ⭐ 起動後すぐにフレーム更新ループを開始
-            video.requestVideoFrameCallback(renderVideoFrame);
-            updateModeUI();
 
         } catch (err) {
             console.error('カメラへのアクセスが拒否されました: ' + err);
