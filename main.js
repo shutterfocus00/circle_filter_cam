@@ -268,6 +268,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let touchPoint = null;
 
     function handleStart(e) {
+        if (e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'svg' || e.target.tagName.toLowerCase() === 'path') {
+            return; // ボタンに対するタッチイベントは無視
+        }
         isTouching = true;
         handleMove(e);
     }
@@ -331,7 +334,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        // 💡 修正: タッチ終了時に lastProcessedPos をリセットしない
         // lastProcessedPos = null;
     }
     
@@ -355,14 +357,14 @@ document.addEventListener('DOMContentLoaded', () => {
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
-            modeToggleBtn.textContent = '写真編集モード';
+            modeToggleBtn.querySelector('.icon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>';
             shutterBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
             cameraSwitchBtn.classList.remove('hidden');
             imageUpload.classList.add('hidden');
             startCamera();
         } else {
-            modeToggleBtn.textContent = 'リアルタイム撮影モード';
+            modeToggleBtn.querySelector('.icon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V5H4V12"/><circle cx="12" cy="12" r="3"/><path d="M10 12L10 17"/><path d="M14 12L14 17"/></svg>';
             shutterBtn.classList.add('hidden');
             saveBtn.classList.remove('hidden');
             cameraSwitchBtn.classList.add('hidden');
@@ -405,5 +407,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 起動時にカメラを起動
     startCamera();
 });
