@@ -39,12 +39,13 @@ html, body {
 /* プレビュー領域 - flex-growを15に設定 */
 #preview-area {
     position: relative;
-    flex: 15; /* 画面全体の15/18を占有 */
+    flex: 15; /* 画面全体の15/19を占有 */
     width: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    background-color: #000; /* プレビューエリア外の背景色 */
 }
 
 /* キャンバスとビデオをプレビューエリアの中央に配置 */
@@ -52,14 +53,14 @@ html, body {
     position: relative;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: contain; /* アスペクト比を維持し、全体を表示 */
     z-index: 1;
 }
 
-/* フィルター操作領域 - flex-growを2に設定 */
+/* フィルター操作領域 - flex-growを3に設定 */
 #filter-area {
     position: relative;
-    flex: 2; /* 画面全体の2/18を占有 */
+    flex: 3; /* 画面全体の3/19を占有 */
     width: 100%;
     padding: 10px;
     display: flex;
@@ -132,7 +133,7 @@ html, body {
 /* 撮影・コントロール領域 - flex-growを1に設定 */
 #control-area {
     display: flex;
-    flex: 1; /* 画面全体の1/18を占有 */
+    flex: 1; /* 画面全体の1/19を占有 */
     justify-content: space-between;
     align-items: center;
     width: 100%;
