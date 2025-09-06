@@ -194,20 +194,20 @@ document.addEventListener('DOMContentLoaded', () => {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    requestAnimationFrame(render);
-                };
-            })
-            .catch(err => {
-                alert('カメラへのアクセスが拒否されました: ' + err);
-                isCameraMode = false;
-                updateModeUI();
-                imageUpload.click();
-            });
+        return new Promise((resolve, reject) => {
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve();
+                        requestAnimationFrame(render);
+                    };
+                })
+                .catch(err => {
+                    reject(err);
+                });
+        });
     }
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
@@ -395,7 +395,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.classList.add('hidden');
             cameraSwitchBtn.classList.remove('hidden');
             imageUpload.classList.add('hidden');
-            startCamera();
         } else {
             modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
             modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
@@ -403,7 +402,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.classList.remove('hidden');
             cameraSwitchBtn.classList.add('hidden');
             imageUpload.classList.remove('hidden');
-            imageUpload.click();
         }
         lastProcessedPos = null;
         gl.uniform1f(brightnessLocation, 0.0);
@@ -417,7 +415,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
-        updateModeUI();
+        if (isCameraMode) {
+            startCamera().then(() => {
+                updateModeUI();
+            }).catch(() => {
+                isCameraMode = false;
+                updateModeUI();
+                imageUpload.click();
+            });
+        } else {
+            video.srcObject.getTracks().forEach(track => track.stop());
+            updateModeUI();
+            imageUpload.click();
+        }
     });
     
     cameraSwitchBtn.addEventListener('click', () => {
@@ -441,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsDataURL(file);
         } else {
+            // ファイル選択をキャンセルした場合、カメラモードに戻る
             isCameraMode = true;
             updateModeUI();
         }
@@ -458,8 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // アプリ起動時にリアルタイム撮影モードを有効化
-    isCameraMode = true;
-    startCamera();
-    updateModeUI();
+    // 起動時の初期化ロジック
+    startCamera().then(() => {
+        isCameraMode = true;
+        updateModeUI();
+    }).catch(err => {
+        console.error('カメラの起動に失敗しました。写真編集モードで起動します。', err);
+        isCameraMode = false;
+        updateModeUI();
+        imageUpload.click();
+    });
 });
