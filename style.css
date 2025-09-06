@@ -38,7 +38,45 @@ html, body {
     border-radius: 50%;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     pointer-events: none;
+    /* 💡追加: サークルをよりリッチにするための背景など */
+    background-color: rgba(255, 255, 255, 0.05); /* うっすらとした背景 */
 }
+
+/* 💡追加: サークル内の縦横線 */
+.circle-line {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+}
+.circle-line.vertical {
+    width: 1px;
+    height: 100%;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+.circle-line.horizontal {
+    width: 100%;
+    height: 1px;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+}
+
+/* 💡追加: フィルターアイコン */
+.filter-icon {
+    position: absolute;
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+    transform: translate(-50%, -50%); /* 中央揃えのため */
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+.filter-icon.top { top: 5%; left: 50%; }
+.filter-icon.bottom { bottom: 5%; left: 50%; }
+.filter-icon.left { left: 5%; top: 50%; }
+.filter-icon.right { right: 5%; top: 50%; }
+
 
 #touch-indicator {
     position: absolute;
@@ -114,6 +152,10 @@ html, body {
     -webkit-appearance: none;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     margin: 0 5px;
+    display: flex; /* 💡追加: アイコンとテキストを中央揃えにするため */
+    align-items: center;
+    justify-content: center;
+    gap: 5px; /* 💡追加: アイコンとテキストの間隔 */
 }
 .btn:hover {
     background-color: rgba(255, 255, 255, 0.4);
