@@ -39,12 +39,13 @@ html, body {
 /* プレビュー領域 - flex-growを15に設定 */
 #preview-area {
     position: relative;
-    flex: 15; /* 画面全体の15/17を占有 */
+    flex: 15; /* 画面全体の15/18を占有 */
     width: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    background-color: var(--main-bg); /* アスペクト比維持のための背景色 */
 }
 
 /* キャンバスとビデオをプレビューエリアの中央に配置 */
@@ -52,16 +53,16 @@ html, body {
     position: relative;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: contain; /* アスペクト比を維持し、全体を表示（余白は親のbackground-colorで埋まる） */
     z-index: 1;
 }
 
-/* フィルター操作領域 - flex-growを1に設定 */
+/* フィルター操作領域 - flex-growを2に設定 */
 #filter-area {
     position: relative;
-    flex: 1; /* 画面全体の1/17を占有 */
+    flex: 2; /* 画面全体の2/18を占有 */
     width: 100%;
-    padding: 10px;
+    padding: 10px; /* パディングは維持 */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -132,7 +133,7 @@ html, body {
 /* 撮影・コントロール領域 - flex-growを1に設定 */
 #control-area {
     display: flex;
-    flex: 1;
+    flex: 1; /* 画面全体の1/18を占有 */
     justify-content: space-between;
     align-items: center;
     width: 100%;
@@ -145,8 +146,8 @@ button {
     background: rgba(40, 40, 40, 0.8);
     border: 2px solid var(--primary-color);
     border-radius: 50%;
-    width: 70px;
-    height: 70px;
+    width: 60px; /* 通常ボタンを少し小さく */
+    height: 60px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -156,8 +157,8 @@ button {
 }
 
 #shutter-btn, #save-btn {
-    width: 80px;
-    height: 80px;
+    width: 70px; /* シャッターボタンも少し小さく */
+    height: 70px;
     border-width: 4px;
 }
 
@@ -167,8 +168,8 @@ button:active {
 }
 
 .icon {
-    width: 30px;
-    height: 30px;
+    width: 25px; /* アイコンも少し小さく */
+    height: 25px;
     stroke: var(--primary-color);
 }
 
