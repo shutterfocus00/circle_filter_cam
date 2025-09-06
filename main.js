@@ -11,10 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const gl = canvas.getContext('webgl');
 
     let isCameraMode = true;
-    // 💡 修正: デフォルトのカメラを'environment'（外カメ）に設定
     let currentFacingMode = 'environment';
     let originalImage = null;
-    let mousePos = { x: 0.5, y: 0.5 };
     let texture = null;
     let isCapturing = false;
 
@@ -217,13 +215,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const circleCenterY = circleRect.top + circleRect.height / 2;
         const circleRadius = circleRect.width / 2;
 
-        let currentMouseX = mousePos.x * canvas.width;
-        let currentMouseY = (1.0 - mousePos.y) * canvas.height;
-
+        // 💡 修正: タッチ位置をサークル内に限定
+        let touchX, touchY;
         const distFromCircleCenter = Math.sqrt(
-            Math.pow(currentMouseX - circleCenterX, 2) + 
-            Math.pow(currentMouseY - circleCenterY, 2)
+            Math.pow(lastTouchPos.x - circleCenterX, 2) + 
+            Math.pow(lastTouchPos.y - circleCenterY, 2)
         );
+
+        if (distFromCircleCenter > circleRadius) {
+            const angle = Math.atan2(lastTouchPos.y - circleCenterY, lastTouchPos.x - circleCenterX);
+            touchX = circleCenterX + circleRadius * Math.cos(angle);
+            touchY = circleCenterY + circleRadius * Math.sin(angle);
+        } else {
+            touchX = lastTouchPos.x;
+            touchY = lastTouchPos.y;
+        }
+
+        // WebGLシェーダー用の正規化された座標
+        const appContainerRect = canvas.getBoundingClientRect();
+        let mousePos = { 
+            x: (touchX - appContainerRect.left) / appContainerRect.width, 
+            y: 1.0 - ((touchY - appContainerRect.top) / appContainerRect.height) 
+        };
 
         let brightness = 0.0;
         let temp = 0.0;
@@ -232,20 +245,19 @@ document.addEventListener('DOMContentLoaded', () => {
         let fade = 0.0;
         let hue_shift = 0.0;
 
-        if (distFromCircleCenter <= circleRadius) {
-            const normalizedX = (currentMouseX - circleCenterX) / circleRadius;
-            const normalizedY = (currentMouseY - circleCenterY) / circleRadius;
+        // サークル内の正規化された座標でフィルター値を計算
+        const normalizedX = (touchX - circleCenterX) / circleRadius;
+        const normalizedY = (touchY - circleCenterY) / circleRadius;
 
-            brightness = -normalizedY;
-            temp = normalizedX;
-            
-            const effectStrength = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-            contrast = effectStrength;
-            saturation = effectStrength;
-            fade = effectStrength * 0.5;
-            hue_shift = normalizedX * 0.5;
-        }
-
+        brightness = -normalizedY;
+        temp = normalizedX;
+        
+        const effectStrength = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+        contrast = effectStrength;
+        saturation = effectStrength;
+        fade = effectStrength * 0.5;
+        hue_shift = normalizedX * 0.5;
+        
         gl.uniform1f(brightnessLocation, brightness);
         gl.uniform1f(tempLocation, temp);
         gl.uniform1f(contrastLocation, contrast);
@@ -273,55 +285,80 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(link);
     }
 
+    let lastTouchPos = { x: 0, y: 0 };
+    let hasTouch = false;
+
     function handleMove(e) {
         let x, y;
-        const appContainerRect = canvas.getBoundingClientRect();
         if (e.touches) {
             x = e.touches[0].clientX;
             y = e.touches[0].clientY;
+            hasTouch = true;
         } else {
             x = e.clientX;
             y = e.clientY;
+            hasTouch = e.buttons > 0;
+        }
+        
+        if (!hasTouch) return;
+        
+        lastTouchPos.x = x;
+        lastTouchPos.y = y;
+
+        // タッチ位置をサークル内に制約
+        const circleRect = circleOverlay.getBoundingClientRect();
+        const circleCenterX = circleRect.left + circleRect.width / 2;
+        const circleCenterY = circleRect.top + circleRect.height / 2;
+        const circleRadius = circleRect.width / 2;
+
+        const distFromCenter = Math.sqrt(
+            Math.pow(x - circleCenterX, 2) + 
+            Math.pow(y - circleCenterY, 2)
+        );
+
+        if (distFromCenter > circleRadius) {
+            const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
+            touchIndicator.style.left = `${circleCenterX + circleRadius * Math.cos(angle)}px`;
+            touchIndicator.style.top = `${circleCenterY + circleRadius * Math.sin(angle)}px`;
+        } else {
+            touchIndicator.style.left = `${x}px`;
+            touchIndicator.style.top = `${y}px`;
         }
         
         touchIndicator.style.opacity = 1;
-        touchIndicator.style.left = `${x}px`;
-        touchIndicator.style.top = `${y}px`;
 
-        mousePos.x = (x - appContainerRect.left) / appContainerRect.width;
-        mousePos.y = 1.0 - ((y - appContainerRect.top) / appContainerRect.height);
-
-        // 💡 修正: 触覚フィードバックのロジックを追加
-        if (navigator.vibrate) { // 振動APIがサポートされているか確認
-            const circleRect = circleOverlay.getBoundingClientRect();
-            const circleCenterX = circleRect.left + circleRect.width / 2;
-            const circleCenterY = circleRect.top + circleRect.height / 2;
-            const distFromCenter = Math.sqrt(
-                Math.pow(x - circleCenterX, 2) + 
-                Math.pow(y - circleCenterY, 2)
-            );
-            
-            // 💡 修正: フィルター効果が極端になる外縁近くで振動させる
-            // 距離がサークルの半径の80%～100%の範囲で振動
-            if (distFromCenter > circleRect.width * 0.4 && distFromCenter <= circleRect.width * 0.5) {
-                navigator.vibrate(10); // 10ミリ秒の微細な振動
-            }
-        }
+        // 💡 修正: 振動ロジックをより確実に
+        if (navigator.vibrate) {
+             const normalizedDist = distFromCenter / circleRadius;
+             if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
+                 navigator.vibrate(20); // 境界線で20msの振動
+             } else if (normalizedDist < 0.05) {
+                 navigator.vibrate(10); // 中央で10msの微細な振動
+             }
+         }
     }
 
     function handleEnd() {
         touchIndicator.style.opacity = 0;
+        hasTouch = false;
+        // 💡 修正: タッチ終了時に初期状態に戻す
+        lastTouchPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     }
-
+    
+    canvas.addEventListener('mousedown', handleMove);
     canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('mouseleave', handleEnd);
+    canvas.addEventListener('touchstart', handleMove);
     canvas.addEventListener('touchmove', handleMove);
     canvas.addEventListener('touchend', handleEnd);
-    canvas.addEventListener('mouseleave', handleEnd);
 
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
+        // リサイズ時にも初期位置に戻す
+        lastTouchPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     });
     window.dispatchEvent(new Event('resize'));
 
@@ -378,6 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ページロード時に自動で外カメを起動
+    // 初期化
     startCamera();
+    lastTouchPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 });
