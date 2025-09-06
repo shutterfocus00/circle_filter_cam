@@ -21,8 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let texture = null;
     let isCapturing = false;
     let lastProcessedPos = null;
-    let focalPoint = [0.5, 0.5];
-    let focalRange = 0.0;
 
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
@@ -49,9 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float u_hue_shift;
         varying vec2 v_texCoord;
         
-        uniform vec2 u_focal_point;
-        uniform float u_focal_range;
-
         vec3 rgb2hsl(vec3 color) {
             float H = 0.0, S = 0.0, L = 0.0;
             float Cmin = min(min(color.r, color.g), color.b);
@@ -110,28 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         void main() {
             vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
-
-            float dist_from_focal = distance(texCoord, u_focal_point);
-            float blur_amount = smoothstep(0.0, u_focal_range, dist_from_focal);
-
-            vec4 final_color;
-            if (blur_amount > 0.0) {
-                vec4 blurred_color = vec4(0.0);
-                float total_weight = 0.0;
-                float size = blur_amount * 0.01;
-                
-                for (int i = -2; i <= 2; i++) {
-                    for (int j = -2; j <= 2; j++) {
-                        vec2 offset = vec2(float(i), float(j)) * size;
-                        float weight = 1.0 / (1.0 + length(offset) * 10.0);
-                        blurred_color += texture2D(u_image, texCoord + offset) * weight;
-                        total_weight += weight;
-                    }
-                }
-                final_color = blurred_color / total_weight;
-            } else {
-                final_color = texture2D(u_image, texCoord);
-            }
+            vec4 original_color = texture2D(u_image, texCoord);
+            vec4 final_color = original_color;
 
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
             final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
@@ -199,8 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
     const fadeLocation = gl.getUniformLocation(program, 'u_fade');
     const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
-    const focalPointLocation = gl.getUniformLocation(program, 'u_focal_point');
-    const focalRangeLocation = gl.getUniformLocation(program, 'u_focal_range');
 
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -216,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: currentFacingMode
             }
         };
-
+        
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
@@ -227,8 +200,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     video.srcObject = stream;
                     video.onloadedmetadata = () => {
                         video.play();
-                        requestAnimationFrame(render);
                         resolve();
+                        requestAnimationFrame(render);
                     };
                 })
                 .catch(err => {
@@ -238,18 +211,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
+        // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = `mix(var(--base-color), var(--bright-color), ${brightnessIntensity})`;
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
 
+        // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
         filterIconBottom.style.color = `mix(var(--base-color), var(--saturation-color), ${bottomIntensity})`;
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
-
+        
+        // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
         filterIconLeft.style.color = `mix(var(--base-color), var(--cool-color), ${hueShiftIntensity})`;
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
 
+        // 色温度 (Temperature) - right
         const tempIntensity = Math.abs(temp);
         filterIconRight.style.color = `mix(var(--base-color), var(--warm-color), ${tempIntensity})`;
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
@@ -270,37 +247,26 @@ document.addEventListener('DOMContentLoaded', () => {
         let saturation = 0.0;
         let fade = 0.0;
         let hue_shift = 0.0;
-
+        
         if (lastProcessedPos) {
             const circleRect = circleOverlay.getBoundingClientRect();
             const circleCenterX = circleRect.left + circleRect.width / 2;
             const circleCenterY = circleRect.top + circleRect.height / 2;
             const circleRadius = circleRect.width / 2;
 
-            const distFromCenter = Math.sqrt(
-                Math.pow(lastProcessedPos.x - circleCenterX, 2) + 
-                Math.pow(lastProcessedPos.y - circleCenterY, 2)
-            );
+            const normalizedX = (lastProcessedPos.x - circleCenterX) / circleRadius;
+            const normalizedY = (lastProcessedPos.y - circleCenterY) / circleRadius;
+
+            brightness = -normalizedY;
+            temp = normalizedX;
             
-            if (distFromCenter <= circleRadius) {
-                const normalizedX = (lastProcessedPos.x - circleCenterX) / circleRadius;
-                const normalizedY = (lastProcessedPos.y - circleCenterY) / circleRadius;
-                brightness = -normalizedY;
-                temp = normalizedX;
-                const clampedDistFromCenter = Math.min(distFromCenter / circleRadius, 1.0); 
-                contrast = clampedDistFromCenter;
-                saturation = clampedDistFromCenter;
-                fade = clampedDistFromCenter * 0.5;
-                hue_shift = normalizedX * 0.5;
-                
-                focalPoint = [0.5, 0.5];
-                focalRange = 0.0;
-            } else {
-                const normalizedFocalX = lastProcessedPos.x / window.innerWidth;
-                const normalizedFocalY = 1.0 - (lastProcessedPos.y / window.innerHeight);
-                focalPoint = [normalizedFocalX, normalizedFocalY];
-                focalRange = 0.5;
-            }
+            const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+            const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
+
+            contrast = clampedDistFromCenter;
+            saturation = clampedDistFromCenter;
+            fade = clampedDistFromCenter * 0.5;
+            hue_shift = normalizedX * 0.5;
         }
 
         gl.uniform1f(brightnessLocation, brightness);
@@ -309,8 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.uniform1f(saturationLocation, saturation);
         gl.uniform1f(fadeLocation, fade);
         gl.uniform1f(hueShiftLocation, hue_shift);
-        gl.uniform2fv(focalPointLocation, focalPoint);
-        gl.uniform1f(focalRangeLocation, focalRange);
 
         updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift);
 
@@ -335,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
+    let touchPoint = null;
 
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
@@ -366,28 +331,36 @@ document.addEventListener('DOMContentLoaded', () => {
             Math.pow(x - circleCenterX, 2) + 
             Math.pow(y - circleCenterY, 2)
         );
-        
-        let touchPoint = { x, y };
 
-        if (distFromCenter > circleRadius) {
+        if (distFromCenter <= circleRadius) {
+            touchPoint = { x, y };
+            touchIndicator.style.left = `${x}px`;
+            touchIndicator.style.top = `${y}px`;
+        } else {
             const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
             const clampedX = circleCenterX + circleRadius * Math.cos(angle);
             const clampedY = circleCenterY + circleRadius * Math.sin(angle);
             touchPoint = { x: clampedX, y: clampedY };
+            
+            touchIndicator.style.left = `${clampedX}px`;
+            touchIndicator.style.top = `${clampedY}px`;
         }
-        
+        touchIndicator.style.opacity = 1;
         lastProcessedPos = touchPoint;
 
-        const touchIndicatorSize = touchIndicator.offsetWidth;
-        touchIndicator.style.left = `${touchPoint.x - touchIndicatorSize / 2}px`;
-        touchIndicator.style.top = `${touchPoint.y - touchIndicatorSize / 2}px`;
-        touchIndicator.style.opacity = 1;
+        if (navigator.vibrate) {
+            const normalizedDist = distFromCenter / circleRadius;
+            if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
+                navigator.vibrate(20);
+            } else if (normalizedDist < 0.05) {
+                navigator.vibrate(10);
+            }
+        }
     }
 
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        lastProcessedPos = null;
     }
     
     canvas.addEventListener('mousedown', handleStart);
@@ -403,16 +376,13 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
-        focalPoint = [0.5, 0.5];
-        focalRange = 0.0;
+        touchPoint = null;
         gl.uniform1f(brightnessLocation, 0.0);
         gl.uniform1f(tempLocation, 0.0);
         gl.uniform1f(contrastLocation, 0.0);
         gl.uniform1f(saturationLocation, 0.0);
         gl.uniform1f(fadeLocation, 0.0);
         gl.uniform1f(hueShiftLocation, 0.0);
-        gl.uniform2fv(focalPointLocation, focalPoint);
-        gl.uniform1f(focalRangeLocation, focalRange);
         updateFilterIcons(0, 0, 0, 0, 0, 0);
     });
     window.dispatchEvent(new Event('resize'));
@@ -434,16 +404,12 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
         }
         lastProcessedPos = null;
-        focalPoint = [0.5, 0.5];
-        focalRange = 0.0;
         gl.uniform1f(brightnessLocation, 0.0);
         gl.uniform1f(tempLocation, 0.0);
         gl.uniform1f(contrastLocation, 0.0);
         gl.uniform1f(saturationLocation, 0.0);
         gl.uniform1f(fadeLocation, 0.0);
         gl.uniform1f(hueShiftLocation, 0.0);
-        gl.uniform2fv(focalPointLocation, focalPoint);
-        gl.uniform1f(focalRangeLocation, focalRange);
         updateFilterIcons(0, 0, 0, 0, 0, 0);
     }
 
@@ -504,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 起動時の初期化ロジック
     startCamera().then(() => {
         isCameraMode = true;
         updateModeUI();
