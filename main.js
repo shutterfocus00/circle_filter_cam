@@ -182,6 +182,17 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
+    // ⭐ 新しいビデオフレームコールバック関数
+    function renderLoop() {
+        if (isCameraMode && video.srcObject) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+            
+            // 次のフレームが利用可能になったら再度呼び出す
+            video.requestVideoFrameCallback(renderLoop);
+        }
+    }
+
     function startCamera() {
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
@@ -202,6 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
+                    // ⭐ 修正点: playingイベントではなくrequestVideoFrameCallbackを使用
+                    video.requestVideoFrameCallback(renderLoop);
+                    isVideoPlaying = true;
                 };
             })
             .catch(err => {
@@ -213,16 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // ⭐ 修正点：playingイベントにsetTimeoutを追加
-    video.addEventListener('playing', () => {
-        setTimeout(() => {
-            isVideoPlaying = true;
-            isCameraMode = true; //念のため
-            updateModeUI();
-        }, 100);
-    });
-    
-    // ⭐ 修正点：フィルターアイコンの色変数をCSSから取得するように変更
     const rootStyles = getComputedStyle(document.documentElement);
     function getCSSVar(name) {
         return rootStyles.getPropertyValue(name).trim();
@@ -247,10 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
-        if (isCameraMode && isVideoPlaying) {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-        } else if (!isCameraMode && originalImage) {
+        // 画像編集モードの場合のみ、画像テクスチャを更新
+        if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
@@ -454,8 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = new Image();
                 img.onload = () => {
                     originalImage = img;
-                    gl.bindTexture(gl.TEXTURE_2D, texture);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
                 };
                 img.src = event.target.result;
             };
@@ -478,6 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ⭐ requestAnimationFrameの描画ループは、フィルターパラメータの更新と描画のみを行うように変更
     requestAnimationFrame(render);
     startCamera();
 });
