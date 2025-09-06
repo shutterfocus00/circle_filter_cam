@@ -32,8 +32,8 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 70vmin; /* サークルを小さく */
-    height: 70vmin; /* サークルを小さく */
+    width: 70vmin;
+    height: 70vmin;
     border: 3px solid rgba(255, 255, 255, 0.7);
     border-radius: 50%;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
@@ -63,24 +63,24 @@ html, body {
 
 .filter-icon {
     position: absolute;
-    font-size: 1.5rem; /* SVGアイコンなのでfont-sizeは直接影響しないが念のため残す */
-    color: rgba(255, 255, 255, 0.8);
+    color: #fff; /* 初期色を白に */
     pointer-events: none;
-    transform: translate(-50%, -50%) scale(0.8); /* アイコンを少し小さく */
+    transform: translate(-50%, -50%) scale(0.8);
     text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    transition: opacity 0.2s ease-out, transform 0.2s ease-out; /* 点灯アニメーション用 */
-    opacity: 0.4; /* デフォルトの不透明度を控えめに */
+    transition: color 0.2s ease-out, transform 0.2s ease-out; /* 色のトランジションを追加 */
 }
-/* アイコンを外円に近づけるための位置調整 */
-.filter-icon.top { top: 10%; left: 50%; }
-.filter-icon.bottom { bottom: 10%; left: 50%; }
-.filter-icon.left { left: 10%; top: 50%; }
-.filter-icon.right { right: 10%; top: 50%; }
+
+/* アイコンを外円に少し近づける */
+.filter-icon.top { top: 7%; left: 50%; }
+.filter-icon.bottom { bottom: 7%; left: 50%; }
+.filter-icon.left { left: 7%; top: 50%; }
+.filter-icon.right { right: 7%; top: 50%; }
 
 .filter-icon .icon {
-    width: 28px; /* SVGアイコンのサイズ */
+    width: 28px;
     height: 28px;
-    stroke: currentColor; /* 親要素のcolorを引き継ぐ */
+    stroke: currentColor;
+    fill: none;
 }
 
 #touch-indicator {
