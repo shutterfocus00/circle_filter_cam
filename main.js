@@ -182,6 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     function startCamera() {
+        // カメラが既にアクティブな場合は停止
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+
         const constraints = {
             video: {
                 width: { ideal: 1280 },
@@ -189,26 +194,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: currentFacingMode
             }
         };
-        
-        if (video.srcObject) {
-            video.srcObject.getTracks().forEach(track => track.stop());
-        }
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
-                    // カメラが起動したらリアルタイムモードを確定
+                    // カメラが正常に起動したらモードを切り替える
                     isCameraMode = true; 
                     updateModeUI();
-                    requestAnimationFrame(render);
                 };
             })
             .catch(err => {
-                alert('カメラへのアクセスが拒否されました: ' + err);
+                console.error('カメラへのアクセスが拒否されました: ' + err);
+                // カメラにアクセスできない場合は写真編集モードに切り替える
                 isCameraMode = false;
                 updateModeUI();
+                alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
                 imageUpload.click();
             });
     }
@@ -216,22 +218,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
         // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
-        filterIconTop.style.color = `mix(var(--base-color), var(--bright-color), ${brightnessIntensity})`;
+        filterIconTop.style.color = `var(--bright-color)`;
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
 
         // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
-        filterIconBottom.style.color = `mix(var(--base-color), var(--saturation-color), ${bottomIntensity})`;
+        filterIconBottom.style.color = `var(--saturation-color)`;
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
         
         // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
-        filterIconLeft.style.color = `mix(var(--base-color), var(--cool-color), ${hueShiftIntensity})`;
+        filterIconLeft.style.color = `var(--hue-color)`;
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
 
         // 色温度 (Temperature) - right
         const tempIntensity = Math.abs(temp);
-        filterIconRight.style.color = `mix(var(--base-color), var(--warm-color), ${tempIntensity})`;
+        filterIconRight.style.color = `var(--warm-color)`;
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
@@ -405,7 +407,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.classList.remove('hidden');
             cameraSwitchBtn.classList.add('hidden');
             imageUpload.classList.remove('hidden');
-            imageUpload.click();
         }
         lastProcessedPos = null;
         gl.uniform1f(brightnessLocation, 0.0);
@@ -419,9 +420,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
-        updateModeUI();
         if (isCameraMode) {
             startCamera();
+        } else {
+            updateModeUI();
+            imageUpload.click();
         }
     });
     
@@ -440,14 +443,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     originalImage = img;
                     gl.bindTexture(gl.TEXTURE_2D, texture);
                     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
-                    render();
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         } else {
+            // ファイル選択がキャンセルされた場合、カメラモードに戻る
             isCameraMode = true;
-            updateModeUI();
             startCamera();
         }
     });
@@ -464,7 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 初期起動時の処理を修正
-    // ページロード時にカメラの起動を試行する
+    // アプリ起動時にカメラの起動を試行
     startCamera();
+    // 描画ループは一度だけ開始
+    requestAnimationFrame(render);
 });
