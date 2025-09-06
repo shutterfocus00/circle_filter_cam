@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
     const touchIndicator = document.getElementById('touch-indicator');
-    const circleOverlay = document.getElementById('circle-overlay');
+    const filterRectangle = document.getElementById('filter-rectangle');
     const filterIconTop = document.getElementById('filter-icon-top');
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
@@ -269,24 +269,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
         
         if (lastProcessedPos) {
-            const circleRect = circleOverlay.getBoundingClientRect();
-            const circleCenterX = circleRect.left + circleRect.width / 2;
-            const circleCenterY = circleRect.top + circleRect.height / 2;
-            const circleRadius = circleRect.width / 2;
+            // 長方形内の正規化された座標からフィルター値を計算
+            const normalizedX = lastProcessedPos.x;
+            const normalizedY = lastProcessedPos.y;
 
-            const normalizedX = (lastProcessedPos.x - circleCenterX) / circleRadius;
-            const normalizedY = (lastProcessedPos.y - circleCenterY) / circleRadius;
-
-            brightness = -normalizedY;
-            temp = normalizedX;
+            brightness = -(normalizedY - 0.5) * 2.0; // Y軸は上方向が明るさ
+            temp = (normalizedX - 0.5) * 2.0; // X軸は色温度
             
-            const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+            const distFromCenter = Math.sqrt(
+                Math.pow(normalizedX - 0.5, 2) + 
+                Math.pow(normalizedY - 0.5, 2)
+            ) * 2.0;
             const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
 
             contrast = clampedDistFromCenter;
             saturation = clampedDistFromCenter;
             fade = clampedDistFromCenter * 0.5;
-            hue_shift = normalizedX * 0.5;
+            hue_shift = (normalizedX - 0.5) * 2.0;
         }
 
         gl.uniform1f(brightnessLocation, brightness);
@@ -319,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
-    let touchPoint = null;
 
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
@@ -342,35 +340,31 @@ document.addEventListener('DOMContentLoaded', () => {
             y = e.clientY;
         }
 
-        const circleRect = circleOverlay.getBoundingClientRect();
-        const circleCenterX = circleRect.left + circleRect.width / 2;
-        const circleCenterY = circleRect.top + circleRect.height / 2;
-        const circleRadius = circleRect.width / 2;
+        const rect = filterRectangle.getBoundingClientRect();
+        const rectLeft = rect.left;
+        const rectTop = rect.top;
+        const rectWidth = rect.width;
+        const rectHeight = rect.height;
 
-        const distFromCenter = Math.sqrt(
-            Math.pow(x - circleCenterX, 2) + 
-            Math.pow(y - circleCenterY, 2)
-        );
-
-        if (distFromCenter <= circleRadius) {
-            touchPoint = { x, y };
-            touchIndicator.style.left = `${x}px`;
-            touchIndicator.style.top = `${y}px`;
-        } else {
-            const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
-            const clampedX = circleCenterX + circleRadius * Math.cos(angle);
-            const clampedY = circleCenterY + circleRadius * Math.sin(angle);
-            touchPoint = { x: clampedX, y: clampedY };
-            
-            touchIndicator.style.left = `${clampedX}px`;
-            touchIndicator.style.top = `${clampedY}px`;
-        }
+        let clampedX = Math.max(rectLeft, Math.min(x, rectLeft + rectWidth));
+        let clampedY = Math.max(rectTop, Math.min(y, rectTop + rectHeight));
+        
+        touchIndicator.style.left = `${clampedX}px`;
+        touchIndicator.style.top = `${clampedY}px`;
         touchIndicator.style.opacity = 1;
-        lastProcessedPos = touchPoint;
+        
+        lastProcessedPos = { 
+            x: (clampedX - rectLeft) / rectWidth, 
+            y: (clampedY - rectTop) / rectHeight 
+        };
 
         if (navigator.vibrate) {
-            const normalizedDist = distFromCenter / circleRadius;
-            if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
+            const distFromCenter = Math.sqrt(
+                Math.pow(lastProcessedPos.x - 0.5, 2) + 
+                Math.pow(lastProcessedPos.y - 0.5, 2)
+            );
+            const normalizedDist = Math.min(distFromCenter * 2.0, 1.0);
+            if (normalizedDist > 0.95) {
                 navigator.vibrate(20);
             } else if (normalizedDist < 0.05) {
                 navigator.vibrate(10);
@@ -383,20 +377,19 @@ document.addEventListener('DOMContentLoaded', () => {
         touchIndicator.style.opacity = 0;
     }
     
-    canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    canvas.addEventListener('mouseup', handleEnd);
-    canvas.addEventListener('mouseleave', handleEnd);
-    canvas.addEventListener('touchstart', handleStart, { passive: false });
-    canvas.addEventListener('touchmove', handleMove, { passive: false });
-    canvas.addEventListener('touchend', handleEnd);
+    filterRectangle.addEventListener('mousedown', handleStart);
+    filterRectangle.addEventListener('mousemove', handleMove);
+    filterRectangle.addEventListener('mouseup', handleEnd);
+    filterRectangle.addEventListener('mouseleave', handleEnd);
+    filterRectangle.addEventListener('touchstart', handleStart, { passive: false });
+    filterRectangle.addEventListener('touchmove', handleMove, { passive: false });
+    filterRectangle.addEventListener('touchend', handleEnd);
 
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
-        touchPoint = null;
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
@@ -485,6 +478,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初期化と描画ループの開始
     initWebGL();
     requestAnimationFrame(render);
-    // ページロード時に即座にカメラを起動
     startCamera();
 });
