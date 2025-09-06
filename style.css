@@ -7,11 +7,13 @@ html, body {
     color: #eee;
     font-family: sans-serif;
     -webkit-overflow-scrolling: touch;
+    /* 色の変化に使う変数を定義 */
     --base-color: #fff;
-    --bright-color: #FFD700;
-    --warm-color: #FF4500;
-    --cool-color: #87CEEB;
-    --saturation-color: #ADFF2F;
+    --bright-color: #FFD700;   /* 明るさ */
+    --warm-color: #FF4500;     /* 色温度 (暖色) */
+    --cool-color: #87CEEB;     /* 色温度 (寒色) */
+    --saturation-color: #ADFF2F; /* 彩度・コントラスト */
+    --hue-color: #4B0082;      /* 色相 */
 }
 
 #app-container {
@@ -24,8 +26,9 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    touch-action: none;
+    touch-action: none; /* タッチイベントのデフォルト動作を無効化 */
 }
+
 #gl-canvas {
     width: 100%;
     height: 100%;
@@ -42,7 +45,7 @@ html, body {
     border: 3px solid rgba(255, 255, 255, 0.7);
     border-radius: 50%;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    pointer-events: none;
+    pointer-events: none; /* クリックやタップイベントを透過させる */
     background-color: rgba(255, 255, 255, 0.05);
 }
 
@@ -70,6 +73,7 @@ html, body {
     position: absolute;
     pointer-events: none;
     transition: transform 0.2s ease-out, color 0.2s ease-out;
+    color: var(--base-color); /* 初期色をベースカラーに設定 */
 }
 .filter-icon .icon {
     width: 28px;
@@ -78,10 +82,12 @@ html, body {
     fill: none;
 }
 
+/* アイコンの位置を調整 */
 .filter-icon.top { top: 7%; left: 50%; transform: translateX(-50%) scale(0.8); }
 .filter-icon.bottom { bottom: 7%; left: 50%; transform: translateX(-50%) scale(0.8); }
 .filter-icon.left { left: 7%; top: 50%; transform: translateY(-50%) scale(0.8); }
 .filter-icon.right { right: 7%; top: 50%; transform: translateY(-50%) scale(0.8); }
+
 
 #touch-indicator {
     position: absolute;
@@ -127,40 +133,19 @@ html, body {
     align-items: center;
 }
 
-.btn {
+#shutter-btn {
     background-color: rgba(255, 255, 255, 0.2);
     border: 2px solid #fff;
     color: #fff;
-    border-radius: 50%;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    -webkit-appearance: none;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-    margin: 0 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-tap-highlight-color: transparent;
-    padding: 0;
-    width: 50px;
-    height: 50px;
-}
-.btn:hover {
-    background-color: rgba(255, 255, 255, 0.4);
-}
-.btn .icon {
-    width: 24px;
-    height: 24px;
-}
-
-/* シャッターボタンの固有スタイル */
-#shutter-btn {
     width: 80px;
     height: 80px;
-    position: relative;
+    border-radius: 50%;
     font-size: 0;
+    cursor: pointer;
     transition: transform 0.1s ease-out, background-color 0.3s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
 }
 
 #shutter-btn:active {
@@ -179,19 +164,32 @@ html, body {
     pointer-events: none;
 }
 
+.btn {
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 2px solid #fff;
+    color: #fff;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    -webkit-appearance: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    margin: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.btn:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+}
 .hidden {
     display: none;
 }
-
-/* アクセシビリティを考慮した非表示 */
-.hidden-file-input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
+.icon {
+    width: 24px;
+    height: 24px;
 }
