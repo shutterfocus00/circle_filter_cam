@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
         
-        isVideoPlaying = false; // カメラ起動を試みるたびにフラグをリセット
+        isVideoPlaying = false;
 
         const constraints = {
             video: {
@@ -206,36 +206,43 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(err => {
                 console.error('カメラへのアクセスが拒否されました: ' + err);
-                alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
                 isCameraMode = false;
                 updateModeUI();
+                alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
+                imageUpload.click();
             });
     }
 
+    // ⭐ 修正点：playingイベントにsetTimeoutを追加
     video.addEventListener('playing', () => {
-        // iOS Safariでの描画タイミングの問題を回避するために、短い遅延を追加します
         setTimeout(() => {
             isVideoPlaying = true;
-            isCameraMode = true;
+            isCameraMode = true; //念のため
             updateModeUI();
         }, 100);
     });
-
+    
+    // ⭐ 修正点：フィルターアイコンの色変数をCSSから取得するように変更
+    const rootStyles = getComputedStyle(document.documentElement);
+    function getCSSVar(name) {
+        return rootStyles.getPropertyValue(name).trim();
+    }
+    
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
         const brightnessIntensity = Math.abs(brightness);
-        filterIconTop.style.color = `var(--bright-color)`;
+        filterIconTop.style.color = getCSSVar('--bright-color');
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
 
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
-        filterIconBottom.style.color = `var(--saturation-color)`;
+        filterIconBottom.style.color = getCSSVar('--saturation-color');
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
         
         const hueShiftIntensity = Math.abs(hue_shift);
-        filterIconLeft.style.color = `var(--hue-color)`;
+        filterIconLeft.style.color = getCSSVar('--hue-color');
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
 
         const tempIntensity = Math.abs(temp);
-        filterIconRight.style.color = `var(--warm-color)`;
+        filterIconRight.style.color = getCSSVar('--warm-color');
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
@@ -423,14 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
-            // カメラモードに切り替える際、既存のカメラストリームを停止
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
-            isVideoPlaying = false;
             startCamera();
         } else {
-            // カメラモードから写真編集モードに切り替える際、カメラストリームを停止
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
