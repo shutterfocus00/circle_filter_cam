@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let texture = null;
     let isCapturing = false;
     let lastProcessedPos = null;
+    let program = null;
 
     // WebGLシェーダーのソース
     const vsSource = `
@@ -143,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initWebGL() {
         const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
         const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-        const program = gl.createProgram();
+        program = gl.createProgram();
         gl.attachShader(program, vertexShader);
         gl.attachShader(program, fragmentShader);
         gl.linkProgram(program);
@@ -178,25 +179,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return shader;
     }
 
-    // ⭐ 修正箇所: `renderVideoFrame`の呼び出しタイミングを`video.onloadedmetadata`に依存させる
-    function renderVideoFrame() {
+    // ⭐ 修正箇所: requestVideoFrameCallback を video.play() の成功後に設定する
+    async function renderVideoFrame() {
         if (!isCameraMode || !video.srcObject) return;
 
-        createImageBitmap(video)
-            .then(bitmap => {
-                gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-                bitmap.close();
-            })
-            .catch(e => {
-                console.error("ImageBitmapの作成に失敗しました:", e);
-            });
+        try {
+            const bitmap = await createImageBitmap(video);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+            bitmap.close();
+        } catch (e) {
+            console.error("ImageBitmapの作成に失敗しました:", e);
+        }
         
         video.requestVideoFrameCallback(renderVideoFrame);
     }
 
     // カメラ起動ロジック
-    function startCamera() {
+    async function startCamera() {
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
@@ -209,22 +209,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                video.srcObject = stream;
-                // ⭐ 修正箇所: videoが再生可能になったらrenderVideoFrameを開始
-                video.onloadedmetadata = () => {
-                    video.play();
-                    video.requestVideoFrameCallback(renderVideoFrame);
-                };
-            })
-            .catch(err => {
-                console.error('カメラへのアクセスが拒否されました: ' + err);
-                isCameraMode = false;
-                updateModeUI();
-                alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
-                imageUpload.click();
-            });
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = stream;
+            // ⭐ 修正箇所: video.play() が確実に完了してから次の処理へ
+            await video.play();
+            updateModeUI();
+            video.requestVideoFrameCallback(renderVideoFrame);
+        } catch (err) {
+            console.error('カメラへのアクセスが拒否されました: ' + err);
+            isCameraMode = false;
+            updateModeUI();
+            alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
+            imageUpload.click();
+        }
     }
 
     const rootStyles = getComputedStyle(document.documentElement);
@@ -263,7 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let fade = 0.0;
         let hue_shift = 0.0;
         
-        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         const brightnessLocation = gl.getUniformLocation(program, 'u_brightness');
         const tempLocation = gl.getUniformLocation(program, 'u_temp');
         const contrastLocation = gl.getUniformLocation(program, 'u_contrast');
@@ -400,7 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
         touchPoint = null;
-        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
@@ -428,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
         }
         lastProcessedPos = null;
-        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
