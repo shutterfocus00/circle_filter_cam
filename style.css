@@ -38,11 +38,9 @@ html, body {
     border-radius: 50%;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     pointer-events: none;
-    /* 💡追加: サークルをよりリッチにするための背景など */
-    background-color: rgba(255, 255, 255, 0.05); /* うっすらとした背景 */
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
-/* 💡追加: サークル内の縦横線 */
 .circle-line {
     position: absolute;
     background-color: rgba(255, 255, 255, 0.3);
@@ -63,13 +61,12 @@ html, body {
     transform: translateY(-50%);
 }
 
-/* 💡追加: フィルターアイコン */
 .filter-icon {
     position: absolute;
     font-size: 1.5rem;
     color: rgba(255, 255, 255, 0.8);
     pointer-events: none;
-    transform: translate(-50%, -50%); /* 中央揃えのため */
+    transform: translate(-50%, -50%);
     text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 .filter-icon.top { top: 5%; left: 50%; }
@@ -103,8 +100,20 @@ html, body {
     box-sizing: border-box;
 }
 
-.shutter-container {
+#left-controls, #right-controls {
+    display: flex;
+    gap: 10px;
+}
+#left-controls {
     flex-grow: 1;
+    justify-content: flex-start;
+}
+#right-controls {
+    flex-grow: 1;
+    justify-content: flex-end;
+}
+
+.shutter-container {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -122,6 +131,7 @@ html, body {
     transition: transform 0.1s ease-out, background-color 0.3s;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     position: relative;
+    -webkit-tap-highlight-color: transparent; /* タップ時のハイライトを無効化 */
 }
 
 #shutter-btn:active {
@@ -144,18 +154,20 @@ html, body {
     background-color: rgba(255, 255, 255, 0.2);
     border: 2px solid #fff;
     color: #fff;
-    padding: 10px 20px;
-    border-radius: 50px;
+    width: 50px; /* ボタンのサイズをアイコンに合わせて調整 */
+    height: 50px;
+    padding: 0; /* パディングをなくす */
+    border-radius: 50%; /* 正円にする */
     font-size: 0.9rem;
     cursor: pointer;
     transition: background-color 0.3s;
     -webkit-appearance: none;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     margin: 0 5px;
-    display: flex; /* 💡追加: アイコンとテキストを中央揃えにするため */
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px; /* 💡追加: アイコンとテキストの間隔 */
+    -webkit-tap-highlight-color: transparent; /* タップ時のハイライトを無効化 */
 }
 .btn:hover {
     background-color: rgba(255, 255, 255, 0.4);
@@ -163,16 +175,7 @@ html, body {
 .hidden {
     display: none;
 }
-
-#left-controls, #right-controls {
-    display: flex;
-    gap: 10px;
-}
-#left-controls {
-    justify-content: flex-start;
-    flex-grow: 1;
-}
-#right-controls {
-    justify-content: flex-end;
-    flex-grow: 1;
+.icon {
+    width: 24px;
+    height: 24px;
 }
