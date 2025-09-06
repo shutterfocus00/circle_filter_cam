@@ -33,29 +33,153 @@ document.addEventListener('DOMContentLoaded', () => {
         isTouching: false,
         touchPoint: null,
     };
-    
-    // 省略：WebGLのセットアップコード（変更なし）
+
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
         return;
     }
-    const vsSource = `...`; // 変更なし
-    const fsSource = `...`; // 変更なし
-    function createShader(gl, type, source) { ... } // 変更なし
+    
+    // WebGLシェーダーコードは変更なし
+    const vsSource = `
+        attribute vec4 a_position;
+        varying vec2 v_texCoord;
+        void main() {
+            gl_Position = a_position;
+            v_texCoord = a_position.xy * 0.5 + 0.5;
+        }
+    `;
+
+    const fsSource = `
+        precision mediump float;
+        uniform sampler2D u_image;
+        uniform float u_brightness;
+        uniform float u_temp;
+        uniform float u_contrast;
+        uniform float u_saturation;
+        uniform float u_fade;
+        uniform float u_hue_shift;
+        varying vec2 v_texCoord;
+        
+        vec3 rgb2hsl(vec3 color) {
+            float H = 0.0, S = 0.0, L = 0.0;
+            float Cmin = min(min(color.r, color.g), color.b);
+            float Cmax = max(max(color.r, color.g), color.b);
+            float delta = Cmax - Cmin;
+        
+            L = (Cmax + Cmin) / 2.0;
+        
+            if (delta == 0.0) {
+                H = 0.0;
+                S = 0.0;
+            } else {
+                if (L < 0.5) S = delta / (Cmax + Cmin);
+                else S = delta / (2.0 - Cmax - Cmin);
+        
+                float delta_R = (((Cmax - color.r) / 6.0) + (delta / 2.0)) / delta;
+                float delta_G = (((Cmax - color.g) / 6.0) + (delta / 2.0)) / delta;
+                float delta_B = (((Cmax - color.b) / 6.0) + (delta / 2.0)) / delta;
+        
+                if (color.r == Cmax) H = delta_B - delta_G;
+                else if (color.g == Cmax) H = (1.0 / 3.0) + delta_R - delta_B;
+                else if (color.b == Cmax) H = (2.0 / 3.0) + delta_G - delta_R;
+        
+                if (H < 0.0) H += 1.0;
+                if (H > 1.0) H -= 1.0;
+            }
+            return vec3(H, S, L);
+        }
+        
+        float hue2rgb(float p, float q, float t) {
+            if (t < 0.0) t += 1.0;
+            if (t > 1.0) t -= 1.0;
+            if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+            if (t < 1.0/2.0) return q;
+            if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+            return p;
+        }
+        
+        vec3 hsl2rgb(vec3 hsl) {
+            float H = hsl.x, S = hsl.y, L = hsl.z;
+            float R, G, B;
+        
+            if (S == 0.0) {
+                R = L;
+                G = L;
+                B = L;
+            } else {
+                float Q = (L < 0.5) ? (L * (1.0 + S)) : (L + S - L * S);
+                float P = 2.0 * L - Q;
+                R = hue2rgb(P, Q, H + 1.0/3.0);
+                G = hue2rgb(P, Q, H);
+                B = hue2rgb(P, Q, H - 1.0/3.0);
+            }
+            return vec3(R, G, B);
+        }
+
+        void main() {
+            vec2 texCoord = vec2(v_texCoord.x, 1.0 - v_texCoord.y);
+            vec4 original_color = texture2D(u_image, texCoord);
+            vec4 final_color = original_color;
+
+            final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
+            final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
+
+            float brightness_factor = 1.0 + u_brightness * 0.5;
+            final_color.rgb = pow(final_color.rgb, vec3(1.0 / brightness_factor));
+
+            vec3 color_temp_matrix = vec3(1.0);
+            if (u_temp > 0.0) {
+                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2);
+            } else {
+                color_temp_matrix = vec3(1.0 + u_temp * 0.2, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.3);
+            }
+            final_color.rgb *= color_temp_matrix;
+
+            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.8) + 0.5;
+            float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
+
+            if (abs(u_hue_shift) > 0.001) {
+                vec3 hsl = rgb2hsl(final_color.rgb);
+                hsl.x += u_hue_shift * 0.05;
+                hsl.x = mod(hsl.x, 1.0);
+                final_color.rgb = hsl2rgb(hsl);
+            }
+            
+            gl_FragColor = final_color;
+        }
+    `;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('An error occurred compiling the shaders: ' + gl.getInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        return shader;
+    }
+
     const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
     const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
     const program = gl.createProgram();
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
     gl.useProgram(program);
+
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     const positions = [-1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, -1];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
     const positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
     gl.enableVertexAttribArray(positionAttributeLocation);
     gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
     const imageLocation = gl.getUniformLocation(program, 'u_image');
     const brightnessLocation = gl.getUniformLocation(program, 'u_brightness');
     const tempLocation = gl.getUniformLocation(program, 'u_temp');
@@ -63,13 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
     const fadeLocation = gl.getUniformLocation(program, 'u_fade');
     const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
+
     state.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, state.texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
-    // 新しいカメラ開始関数
     function startCamera() {
         const constraints = {
             video: {
@@ -78,9 +202,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: state.currentFacingMode
             }
         };
-        
+
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
+            video.srcObject = null; // ストリームを明示的にクリア
         }
 
         navigator.mediaDevices.getUserMedia(constraints)
@@ -92,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             })
             .catch(err => {
-                const message = 'カメラへのアクセスが拒否されました。設定を確認してください。';
+                const message = 'カメラへのアクセスが拒否されました。ブラウザの設定からカメラの使用を許可してください。';
                 alert(message);
                 console.error(err);
                 state.isCameraMode = false;
@@ -134,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.uniform1f(fadeLocation, fade);
         gl.uniform1f(hueShiftLocation, hue_shift);
         
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.drawArrays(gl.TRIANGLES, 0, 0, 6);
         
         if (state.isCapturing) {
             captureFrame();
@@ -143,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         requestAnimationFrame(render);
     }
-    
+
     function captureFrame() {
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -154,7 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(link);
     }
 
-    // タッチイベントハンドラの改善
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
@@ -306,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
             state.isCapturing = true;
         }
     });
-    
-    // 初回起動時のUI設定
+
     updateModeUI();
 });
