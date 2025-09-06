@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const circleOverlay = document.getElementById('circle-overlay');
     const gl = canvas.getContext('webgl');
 
-    // フィルターアイコンの要素を取得
     const filterIconTop = document.getElementById('filter-icon-top');
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
@@ -212,35 +211,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
-        const baseColor = '#fff';
-        const brightColor = '#FFD700'; // 太陽
-        const warmColor = '#FF4500'; // 焚き火
-        const coolColor = '#87CEEB'; // 雪
-        const saturationColor = '#ADFF2F'; // 月
+        const root = document.documentElement;
 
         // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
-        filterIconTop.style.color = `mix(${baseColor}, ${brightColor}, ${brightnessIntensity})`;
+        filterIconTop.style.color = `mix(var(--base-color), var(--bright-color), ${brightnessIntensity})`;
+        filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
 
         // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
-        filterIconBottom.style.color = `mix(${baseColor}, ${saturationColor}, ${bottomIntensity})`;
+        filterIconBottom.style.color = `mix(var(--base-color), var(--saturation-color), ${bottomIntensity})`;
+        filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
         
         // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
-        filterIconLeft.style.color = `mix(${baseColor}, ${coolColor}, ${hueShiftIntensity})`;
+        filterIconLeft.style.color = `mix(var(--base-color), var(--cool-color), ${hueShiftIntensity})`;
+        filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
 
         // 色温度 (Temperature) - right
         const tempIntensity = Math.abs(temp);
-        filterIconRight.style.color = `mix(${baseColor}, ${warmColor}, ${tempIntensity})`;
-
-        // アイコンの拡大縮小も追加で維持
-        filterIconTop.style.transform = `translate(-50%, -50%) scale(${1.0 + brightnessIntensity * 0.2})`;
-        filterIconBottom.style.transform = `translate(-50%, -50%) scale(${1.0 + bottomIntensity * 0.2})`;
-        filterIconLeft.style.transform = `translate(-50%, -50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
-        filterIconRight.style.transform = `translate(-50%, -50%) scale(${1.0 + tempIntensity * 0.2})`;
+        filterIconRight.style.color = `mix(var(--base-color), var(--warm-color), ${tempIntensity})`;
+        filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
-
 
     function render() {
         if (isCameraMode && video.readyState >= 2) {
@@ -345,39 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
             touchIndicator.style.opacity = 1;
+            lastProcessedPos = touchPoint;
         } else {
-            if (touchPoint) {
-                const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
-                const clampedX = circleCenterX + circleRadius * Math.cos(angle);
-                const clampedY = circleCenterY + circleRadius * Math.sin(angle);
-                touchPoint = { x: clampedX, y: clampedY };
-                
-                touchIndicator.style.left = `${clampedX}px`;
-                touchIndicator.style.top = `${clampedY}px`;
-                touchIndicator.style.opacity = 1;
-            } else {
-                touchIndicator.style.opacity = 0;
-                lastProcessedPos = null;
-                gl.uniform1f(brightnessLocation, 0.0);
-                gl.uniform1f(tempLocation, 0.0);
-                gl.uniform1f(contrastLocation, 0.0);
-                gl.uniform1f(saturationLocation, 0.0);
-                gl.uniform1f(fadeLocation, 0.0);
-                gl.uniform1f(hueShiftLocation, 0.0);
-                updateFilterIcons(0, 0, 0, 0, 0, 0);
-                return;
-            }
-        }
-        
-        lastProcessedPos = touchPoint;
-
-        if (navigator.vibrate) {
-            const normalizedDist = distFromCenter / circleRadius;
-            if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
-                navigator.vibrate(20);
-            } else if (normalizedDist < 0.05) {
-                navigator.vibrate(10);
-            }
+            touchIndicator.style.opacity = 0;
+            lastProcessedPos = null;
+            updateFilterIcons(0, 0, 0, 0, 0, 0);
         }
     }
 
@@ -450,21 +414,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = new Image();
                 img.onload = () => {
                     originalImage = img;
-                    const imgAspectRatio = img.width / img.height;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-
-                    let targetWidth, targetHeight;
-                    if (imgAspectRatio > canvasAspectRatio) {
-                        targetWidth = canvas.width;
-                        targetHeight = canvas.width / imgAspectRatio;
-                    } else {
-                        targetHeight = canvas.height;
-                        targetWidth = canvas.height * imgAspectRatio;
-                    }
-
                     gl.bindTexture(gl.TEXTURE_2D, texture);
                     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
-                    
                     render();
                 };
                 img.src = event.target.result;
