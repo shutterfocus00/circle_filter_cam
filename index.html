@@ -19,16 +19,22 @@
         <div id="touch-indicator"></div>
         <div id="controls">
             <div id="left-controls">
-                <button id="mode-toggle-btn" class="btn">📸 リアルタイム撮影モード</button>
+                <button id="mode-toggle-btn" class="btn" title="モード切り替え">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                </button>
             </div>
             <div class="shutter-container">
-                <button id="shutter-btn">
+                <button id="shutter-btn" title="撮影">
                     <div class="shutter-btn-inner"></div>
                 </button>
             </div>
             <div id="right-controls">
-                <button id="camera-switch-btn" class="btn">🔄</button>
-                <button id="save-btn" class="btn hidden">💾 保存</button>
+                <button id="camera-switch-btn" class="btn" title="カメラ切り替え">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V5H4V12"/><circle cx="12" cy="12" r="3"/><path d="M10 12L10 17"/><path d="M14 12L14 17"/></svg>
+                </button>
+                <button id="save-btn" class="btn hidden" title="保存">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10l5 5v11a2 2 0 0 1-2 2z"/><path d="M7 21v-4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4"/><path d="M16 12H8"/></svg>
+                </button>
                 <input type="file" id="image-upload" accept="image/*" class="hidden">
             </div>
         </div>
