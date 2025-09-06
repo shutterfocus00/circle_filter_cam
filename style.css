@@ -32,8 +32,8 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 80vmin;
-    height: 80vmin;
+    width: 70vmin; /* サークルを小さく */
+    height: 70vmin; /* サークルを小さく */
     border: 3px solid rgba(255, 255, 255, 0.7);
     border-radius: 50%;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
@@ -63,17 +63,25 @@ html, body {
 
 .filter-icon {
     position: absolute;
-    font-size: 1.5rem;
+    font-size: 1.5rem; /* SVGアイコンなのでfont-sizeは直接影響しないが念のため残す */
     color: rgba(255, 255, 255, 0.8);
     pointer-events: none;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.8); /* アイコンを少し小さく */
     text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out; /* 点灯アニメーション用 */
+    opacity: 0.4; /* デフォルトの不透明度を控えめに */
 }
-.filter-icon.top { top: 5%; left: 50%; }
-.filter-icon.bottom { bottom: 5%; left: 50%; }
-.filter-icon.left { left: 5%; top: 50%; }
-.filter-icon.right { right: 5%; top: 50%; }
+/* アイコンを外円に近づけるための位置調整 */
+.filter-icon.top { top: 10%; left: 50%; }
+.filter-icon.bottom { bottom: 10%; left: 50%; }
+.filter-icon.left { left: 10%; top: 50%; }
+.filter-icon.right { right: 10%; top: 50%; }
 
+.filter-icon .icon {
+    width: 28px; /* SVGアイコンのサイズ */
+    height: 28px;
+    stroke: currentColor; /* 親要素のcolorを引き継ぐ */
+}
 
 #touch-indicator {
     position: absolute;
@@ -131,7 +139,7 @@ html, body {
     transition: transform 0.1s ease-out, background-color 0.3s;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     position: relative;
-    -webkit-tap-highlight-color: transparent; /* タップ時のハイライトを無効化 */
+    -webkit-tap-highlight-color: transparent;
 }
 
 #shutter-btn:active {
@@ -154,10 +162,10 @@ html, body {
     background-color: rgba(255, 255, 255, 0.2);
     border: 2px solid #fff;
     color: #fff;
-    width: 50px; /* ボタンのサイズをアイコンに合わせて調整 */
+    width: 50px;
     height: 50px;
-    padding: 0; /* パディングをなくす */
-    border-radius: 50%; /* 正円にする */
+    padding: 0;
+    border-radius: 50%;
     font-size: 0.9rem;
     cursor: pointer;
     transition: background-color 0.3s;
@@ -167,7 +175,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    -webkit-tap-highlight-color: transparent; /* タップ時のハイライトを無効化 */
+    -webkit-tap-highlight-color: transparent;
 }
 .btn:hover {
     background-color: rgba(255, 255, 255, 0.4);
