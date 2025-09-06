@@ -7,12 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const shutterBtn = document.getElementById('shutter-btn');
     const saveBtn = document.getElementById('save-btn');
     const imageUpload = document.getElementById('image-upload');
-    const touchIndicator = document.getElementById('touch-indicator');
     const filterRectangle = document.getElementById('filter-rectangle');
     const filterIconTop = document.getElementById('filter-icon-top');
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
+    const particlesCanvas = document.getElementById('particles-canvas');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
@@ -29,7 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let isCapturing = false;
     let lastProcessedPos = null;
     let program = null;
+    let animationFrameId = null;
 
+    // パーティクルシステム用2Dコンテキスト
+    const particlesCtx = particlesCanvas.getContext('2d');
+    const particles = [];
+    
     // WebGLシェーダーのソース
     const vsSource = `
         attribute vec4 a_position;
@@ -109,13 +114,22 @@ document.addEventListener('DOMContentLoaded', () => {
         void main() {
             vec4 original_color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
             vec4 final_color = original_color;
+            
+            // フィルム風フェード効果
+            float fadeIntensity = u_fade;
+            float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+            
+            // フィルムのシャドウ持ち上げ
+            final_color.rgb = final_color.rgb + vec3(fadeIntensity * 0.2);
+            
+            // 全体的な彩度低下
+            final_color.rgb = mix(final_color.rgb, vec3(luma), fadeIntensity * 0.4);
 
-            final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
-            final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
-
+            // 明るさ調整
             float exposure = u_brightness * 2.0;
             final_color.rgb *= pow(2.0, exposure);
             
+            // 色温度調整
             vec3 color_temp_matrix = vec3(1.0);
             if (u_temp > 0.0) {
                 color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2);
@@ -124,10 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             final_color.rgb *= color_temp_matrix;
 
+            // コントラスト調整
             final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.8) + 0.5;
-            float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+            
+            // 彩度調整
+            luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
             final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
+            // 色相シフト調整
             if (abs(u_hue_shift) > 0.001) {
                 vec3 hsl = rgb2hsl(final_color.rgb);
                 hsl.x += u_hue_shift * 0.05;
@@ -198,8 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const constraints = {
             video: {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
+                width: { ideal: window.innerWidth },
+                height: { ideal: window.innerHeight },
                 facingMode: currentFacingMode
             }
         };
@@ -240,6 +258,49 @@ document.addEventListener('DOMContentLoaded', () => {
         filterIconRight.style.color = getCSSVar('--warm-color');
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
+    
+    // パーティクルクラス
+    class Particle {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.size = Math.random() * 5 + 1;
+            this.life = 100; // ライフタイム
+            this.opacity = 1.0;
+            this.velocity = {
+                x: (Math.random() - 0.5) * 2,
+                y: (Math.random() - 0.5) * 2
+            };
+        }
+
+        update() {
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            this.life -= 1;
+            this.opacity = this.life / 100;
+        }
+
+        draw() {
+            particlesCtx.globalAlpha = this.opacity;
+            particlesCtx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+            particlesCtx.beginPath();
+            particlesCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            particlesCtx.fill();
+        }
+    }
+
+    // パーティクルアニメーションループ
+    function animateParticles() {
+        particlesCtx.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) {
+                particles.splice(i, 1);
+            }
+        }
+        requestAnimationFrame(animateParticles);
+    }
 
     function render() {
         gl.clearColor(0, 0, 0, 1);
@@ -259,24 +320,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const fadeLocation = gl.getUniformLocation(program, 'u_fade');
         const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
         
-        // プレビュー画面のアスペクト比維持はCSSに任せるため、WebGLのクロップは行わない
-        const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
-        if (cropRectLocation) { // シェーダーにu_crop_rectがある場合のみ
-            gl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
-        }
-
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
         
         if (lastProcessedPos) {
-            // 長方形内の正規化された座標からフィルター値を計算
             const normalizedX = lastProcessedPos.x;
             const normalizedY = lastProcessedPos.y;
 
-            brightness = -(normalizedY - 0.5) * 2.0; // Y軸は上方向が明るさ
-            temp = (normalizedX - 0.5) * 2.0; // X軸は色温度
+            brightness = -(normalizedY - 0.5) * 2.0; 
+            temp = (normalizedX - 0.5) * 2.0;
             
             const distFromCenter = Math.sqrt(
                 Math.pow(normalizedX - 0.5, 2) + 
@@ -284,9 +338,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ) * 2.0;
             const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
 
-            contrast = clampedDistFromCenter;
-            saturation = clampedDistFromCenter;
-            fade = clampedDistFromCenter * 0.5;
+            contrast = clampedDistFromCenter * 0.5;
+            saturation = clampedDistFromCenter * 0.5;
+            fade = clampedDistFromCenter * 0.8;
             hue_shift = (normalizedX - 0.5) * 2.0;
         }
 
@@ -306,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isCapturing = false;
         }
 
-        requestAnimationFrame(render);
+        animationFrameId = requestAnimationFrame(render);
     }
     
     function captureFrame() {
@@ -333,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
         offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_MIN_FILTER, offscreenGl.LINEAR);
         offscreenGl.texImage2D(offscreenGl.TEXTURE_2D, 0, offscreenGl.RGBA, offscreenGl.RGBA, offscreenGl.UNSIGNED_BYTE, source);
 
-        // プレビューのフィルター値を再適用
         let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
         if (lastProcessedPos) {
             const normalizedX = lastProcessedPos.x;
@@ -342,9 +395,9 @@ document.addEventListener('DOMContentLoaded', () => {
             temp = (normalizedX - 0.5) * 2.0;
             const distFromCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2)) * 2.0;
             const clampedDistFromCenter = Math.min(distFromCenter, 1.0);
-            contrast = clampedDistFromCenter;
-            saturation = clampedDistFromCenter;
-            fade = clampedDistFromCenter * 0.5;
+            contrast = clampedDistFromCenter * 0.5;
+            saturation = clampedDistFromCenter * 0.5;
+            fade = clampedDistFromCenter * 0.8;
             hue_shift = (normalizedX - 0.5) * 2.0;
         }
 
@@ -399,9 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let clampedX = Math.max(rectLeft, Math.min(x, rectLeft + rectWidth));
         let clampedY = Math.max(rectTop, Math.min(y, rectTop + rectHeight));
         
-        touchIndicator.style.left = `${clampedX}px`;
-        touchIndicator.style.top = `${clampedY}px`;
-        touchIndicator.style.opacity = 1;
+        for (let i = 0; i < 5; i++) {
+            particles.push(new Particle(clampedX, clampedY));
+        }
         
         lastProcessedPos = { 
             x: (clampedX - rectLeft) / rectWidth, 
@@ -424,7 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleEnd() {
         isTouching = false;
-        touchIndicator.style.opacity = 0;
     }
     
     filterRectangle.addEventListener('mousedown', handleStart);
@@ -439,6 +491,10 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
+        
+        particlesCanvas.width = window.innerWidth;
+        particlesCanvas.height = window.innerHeight;
+        
         lastProcessedPos = null;
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
@@ -534,5 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     requestAnimationFrame(render);
+    animateParticles();
     startCamera();
 });
