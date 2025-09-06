@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let originalImage = null;
     let texture = null;
     let isCapturing = false;
-    let lastProcessedPos = null; // 💡追加: 最後に処理したタッチ位置を保持
+    let lastProcessedPos = null;
 
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
@@ -218,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let fade = 0.0;
         let hue_shift = 0.0;
         
-        // 💡 修正: lastProcessedPosが存在する場合のみフィルターを更新
         if (lastProcessedPos) {
             const circleRect = circleOverlay.getBoundingClientRect();
             const circleCenterX = circleRect.left + circleRect.width / 2;
@@ -266,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
+    let touchPoint = null; // 💡追加: 指がサークル内にあるか判定するための変数
 
     function handleStart(e) {
         isTouching = true;
@@ -294,37 +294,50 @@ document.addEventListener('DOMContentLoaded', () => {
             Math.pow(y - circleCenterY, 2)
         );
 
-        // 💡 修正: サークル内でのみ処理
+        // 💡 修正: サークル内をタッチした場合のみ、touchPointを更新
         if (distFromCenter <= circleRadius) {
+            touchPoint = { x, y };
             // タッチインジケーターをタッチ位置に表示
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
             touchIndicator.style.opacity = 1;
-
-            // 最後に処理した位置を更新
-            lastProcessedPos = { x, y };
-            
-            // 振動ロジック
-            if (navigator.vibrate) {
-                const normalizedDist = distFromCenter / circleRadius;
-                if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
-                    navigator.vibrate(20);
-                } else if (normalizedDist < 0.05) {
-                    navigator.vibrate(10);
-                }
-            }
         } else {
-            // サークル外に出たら、インジケーターを非表示にし、処理位置を無効化
-            touchIndicator.style.opacity = 0;
-            lastProcessedPos = null;
+            // 💡 修正: サークル外に出たら、touchPointは最後の有効な位置を保持し、インジケーターを外縁にクランプ
+            if (touchPoint) {
+                const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
+                const clampedX = circleCenterX + circleRadius * Math.cos(angle);
+                const clampedY = circleCenterY + circleRadius * Math.sin(angle);
+                touchPoint = { x: clampedX, y: clampedY };
+                
+                touchIndicator.style.left = `${clampedX}px`;
+                touchIndicator.style.top = `${clampedY}px`;
+                touchIndicator.style.opacity = 1;
+            } else {
+                // サークル外を最初にタッチした場合、何もしない
+                touchIndicator.style.opacity = 0;
+                lastProcessedPos = null;
+                return;
+            }
+        }
+        
+        lastProcessedPos = touchPoint;
+
+        // 振動ロジック
+        if (navigator.vibrate) {
+            const normalizedDist = distFromCenter / circleRadius;
+            if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
+                navigator.vibrate(20);
+            } else if (normalizedDist < 0.05) {
+                navigator.vibrate(10);
+            }
         }
     }
 
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        // 💡 修正: タッチ終了時に初期状態に戻す
         lastProcessedPos = null;
+        touchPoint = null;
     }
     
     canvas.addEventListener('mousedown', handleStart);
@@ -339,8 +352,8 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
-        // リサイズ時に操作位置をリセット
         lastProcessedPos = null;
+        touchPoint = null;
     });
     window.dispatchEvent(new Event('resize'));
 
@@ -397,6 +410,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 初期化
     startCamera();
 });
