@@ -424,7 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 imageUpload.click();
             });
         } else {
-            video.srcObject.getTracks().forEach(track => track.stop());
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
             updateModeUI();
             imageUpload.click();
         }
@@ -451,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsDataURL(file);
         } else {
-            // ファイル選択をキャンセルした場合、カメラモードに戻る
             isCameraMode = true;
             updateModeUI();
         }
@@ -477,6 +478,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('カメラの起動に失敗しました。写真編集モードで起動します。', err);
         isCameraMode = false;
         updateModeUI();
-        imageUpload.click();
     });
 });
