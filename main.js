@@ -337,17 +337,44 @@ document.addEventListener('DOMContentLoaded', () => {
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
             touchIndicator.style.opacity = 1;
-            lastProcessedPos = touchPoint;
         } else {
-            touchIndicator.style.opacity = 0;
-            lastProcessedPos = null;
-            updateFilterIcons(0, 0, 0, 0, 0, 0);
+            if (touchPoint) {
+                const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
+                const clampedX = circleCenterX + circleRadius * Math.cos(angle);
+                const clampedY = circleCenterY + circleRadius * Math.sin(angle);
+                touchPoint = { x: clampedX, y: clampedY };
+                
+                touchIndicator.style.left = `${clampedX}px`;
+                touchIndicator.style.top = `${clampedY}px`;
+                touchIndicator.style.opacity = 1;
+            } else {
+                touchIndicator.style.opacity = 0;
+            }
+        }
+        
+        lastProcessedPos = touchPoint;
+
+        if (navigator.vibrate) {
+            const normalizedDist = distFromCenter / circleRadius;
+            if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
+                navigator.vibrate(20);
+            } else if (normalizedDist < 0.05) {
+                navigator.vibrate(10);
+            }
         }
     }
 
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
+        lastProcessedPos = null;
+        gl.uniform1f(brightnessLocation, 0.0);
+        gl.uniform1f(tempLocation, 0.0);
+        gl.uniform1f(contrastLocation, 0.0);
+        gl.uniform1f(saturationLocation, 0.0);
+        gl.uniform1f(fadeLocation, 0.0);
+        gl.uniform1f(hueShiftLocation, 0.0);
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
     }
     
     canvas.addEventListener('mousedown', handleStart);
