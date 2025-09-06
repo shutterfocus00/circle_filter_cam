@@ -13,8 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
-    const startScreen = document.getElementById('start-screen');
-    const startCameraButton = document.getElementById('start-camera-button');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
@@ -487,4 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初期化と描画ループの開始
     initWebGL();
     requestAnimationFrame(render);
+    // ページロード時に即座にカメラを起動
+    startCamera();
 });
