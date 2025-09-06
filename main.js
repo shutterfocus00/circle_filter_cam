@@ -273,15 +273,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
 
         const previewArea = document.getElementById('preview-area');
-        const videoAspect = video.videoWidth / video.videoHeight;
-        const previewAspect = previewArea.offsetWidth / previewArea.offsetHeight;
+        
+        // プレビュー画面の縦伸びを防ぐためのアスペクト比計算
+        const screenAspect = previewArea.offsetWidth / previewArea.offsetHeight;
+        let sourceAspect = 0;
+        if (isCameraMode) {
+            sourceAspect = video.videoWidth / video.videoHeight;
+        } else if (originalImage) {
+            sourceAspect = originalImage.width / originalImage.height;
+        }
 
         let cropX = 0, cropY = 0, cropW = 1, cropH = 1;
-        if (videoAspect > previewAspect) { // ビデオが横長
-            cropW = previewAspect / videoAspect;
+        if (sourceAspect > screenAspect) { // ソースが横長
+            cropW = screenAspect / sourceAspect;
             cropX = (1.0 - cropW) / 2.0;
-        } else { // ビデオが縦長
-            cropH = videoAspect / previewAspect;
+        } else { // ソースが縦長
+            cropH = sourceAspect / screenAspect;
             cropY = (1.0 - cropH) / 2.0;
         }
 
@@ -374,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
             return;
         }
-        e.preventDefault(); // デフォルトのタッチアクションを抑制
+        e.preventDefault();
         isTouching = true;
         handleMove(e);
     }
