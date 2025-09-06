@@ -151,39 +151,35 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     // WebGL初期化関数
-    function initWebGL() {
-        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
-        const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-        program = gl.createProgram();
-        gl.attachShader(program, vertexShader);
-        gl.attachShader(program, fragmentShader);
-        gl.linkProgram(program);
-        gl.useProgram(program);
+    function initWebGL(context) {
+        const vertexShader = createShader(context, context.VERTEX_SHADER, vsSource);
+        const fragmentShader = createShader(context, context.FRAGMENT_SHADER, fsSource);
+        const program = context.createProgram();
+        context.attachShader(program, vertexShader);
+        context.attachShader(program, fragmentShader);
+        context.linkProgram(program);
+        context.useProgram(program);
 
-        const positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        const positionBuffer = context.createBuffer();
+        context.bindBuffer(context.ARRAY_BUFFER, positionBuffer);
         const positions = [-1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, -1];
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+        context.bufferData(context.ARRAY_BUFFER, new Float32Array(positions), context.STATIC_DRAW);
 
-        const positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
-        gl.enableVertexAttribArray(positionAttributeLocation);
-        gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+        const positionAttributeLocation = context.getAttribLocation(program, 'a_position');
+        context.enableVertexAttribArray(positionAttributeLocation);
+        context.vertexAttribPointer(positionAttributeLocation, 2, context.FLOAT, false, 0, 0);
 
-        texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        return program;
     }
     
     // シェーダー作成ヘルパー関数
-    function createShader(gl, type, source) {
-        const shader = gl.createShader(type);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.error('シェーダーのコンパイル中にエラーが発生しました: ' + gl.getInfoLog(shader));
-            gl.deleteShader(shader);
+    function createShader(context, type, source) {
+        const shader = context.createShader(type);
+        context.shaderSource(shader, source);
+        context.compileShader(shader);
+        if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
+            console.error('シェーダーのコンパイル中にエラーが発生しました: ' + context.getInfoLog(shader));
+            context.deleteShader(shader);
             return null;
         }
         return shader;
@@ -257,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
         let brightness = 0.0;
         let temp = 0.0;
         let contrast = 0.0;
@@ -273,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
 
         const source = isCameraMode ? video : originalImage;
-        let sourceAspect = 0;
+        let sourceAspect = 1;
         if (source) {
             sourceAspect = (source.videoWidth || source.width) / (source.videoHeight || source.height);
         }
@@ -337,48 +336,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function captureFrame() {
-        // 保存時、u_crop_rectをリセットして元画像全体をレンダリング
-        const originalCropRect = gl.getUniformLocation(program, 'u_crop_rect');
-        gl.uniform4f(originalCropRect, 0.0, 0.0, 1.0, 1.0);
-        
         const source = isCameraMode ? video : originalImage;
         const sourceWidth = source.videoWidth || source.width;
         const sourceHeight = source.videoHeight || source.height;
 
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = sourceWidth;
-        tempCanvas.height = sourceHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, gl.createFramebuffer());
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-
-        gl.uniform4f(gl.getUniformLocation(program, 'u_crop_rect'), 0.0, 0.0, 1.0, 1.0);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        
-        const pixels = new Uint8Array(sourceWidth * sourceHeight * 4);
-        gl.readPixels(0, 0, sourceWidth, sourceHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-
-        const imageData = new ImageData(sourceWidth, sourceHeight);
-        for (let i = 0; i < pixels.length; i += 4) {
-            imageData.data[i] = pixels[i];
-            imageData.data[i + 1] = pixels[i + 1];
-            imageData.data[i + 2] = pixels[i + 2];
-            imageData.data[i + 3] = pixels[i + 3];
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = sourceWidth;
+        offscreenCanvas.height = sourceHeight;
+        const offscreenGl = offscreenCanvas.getContext('webgl');
+        if (!offscreenGl) {
+            console.error('オフスクリーンWebGLコンテキストの作成に失敗しました。');
+            return;
         }
 
-        tempCtx.putImageData(imageData, 0, 0);
+        const offscreenProgram = initWebGL(offscreenGl);
+        offscreenGl.useProgram(offscreenProgram);
 
-        const dataURL = tempCanvas.toDataURL('image/png');
+        const offscreenTexture = offscreenGl.createTexture();
+        offscreenGl.bindTexture(offscreenGl.TEXTURE_2D, offscreenTexture);
+        offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_WRAP_S, offscreenGl.CLAMP_TO_EDGE);
+        offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_WRAP_T, offscreenGl.CLAMP_TO_EDGE);
+        offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_MIN_FILTER, offscreenGl.LINEAR);
+        offscreenGl.texImage2D(offscreenGl.TEXTURE_2D, 0, offscreenGl.RGBA, offscreenGl.RGBA, offscreenGl.UNSIGNED_BYTE, source);
+
+        offscreenGl.uniform1i(offscreenGl.getUniformLocation(offscreenProgram, 'u_image'), 0);
+        
+        // 保存時はクロップを行わない
+        offscreenGl.uniform4f(offscreenGl.getUniformLocation(offscreenProgram, 'u_crop_rect'), 0.0, 0.0, 1.0, 1.0);
+
+        // プレビューのフィルター値を再適用
+        let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
+        if (lastProcessedPos) {
+            const normalizedX = lastProcessedPos.x;
+            const normalizedY = lastProcessedPos.y;
+            brightness = -(normalizedY - 0.5) * 2.0;
+            temp = (normalizedX - 0.5) * 2.0;
+            const distFromCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2)) * 2.0;
+            const clampedDistFromCenter = Math.min(distFromCenter, 1.0);
+            contrast = clampedDistFromCenter;
+            saturation = clampedDistFromCenter;
+            fade = clampedDistFromCenter * 0.5;
+            hue_shift = (normalizedX - 0.5) * 2.0;
+        }
+
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_brightness'), brightness);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_temp'), temp);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_contrast'), contrast);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_saturation'), saturation);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_fade'), fade);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_hue_shift'), hue_shift);
+        
+        offscreenGl.drawArrays(offscreenGl.TRIANGLES, 0, 6);
+
+        const dataURL = offscreenCanvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = dataURL;
         link.download = `filtered_photo_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.uniform4f(originalCropRect, gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'));
     }
 
     let isTouching = false;
@@ -541,7 +557,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 初期化と描画ループの開始
-    initWebGL();
+    program = initWebGL(gl);
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
     requestAnimationFrame(render);
     startCamera();
 });
