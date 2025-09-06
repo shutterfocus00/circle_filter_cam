@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let texture = null;
     let isCapturing = false;
     let lastProcessedPos = null;
+    let isVideoReady = false; // 新しい状態変数
 
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
@@ -182,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     function startCamera() {
-        // カメラが既にアクティブな場合は停止
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
@@ -194,20 +194,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 facingMode: currentFacingMode
             }
         };
+        
+        isVideoReady = false; // カメラ起動を試みるたびにフラグをリセット
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    // カメラが正常に起動したらモードを切り替える
-                    isCameraMode = true; 
-                    updateModeUI();
-                };
             })
             .catch(err => {
                 console.error('カメラへのアクセスが拒否されました: ' + err);
-                // カメラにアクセスできない場合は写真編集モードに切り替える
                 isCameraMode = false;
                 updateModeUI();
                 alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
@@ -215,30 +210,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // カメラ映像が読み込まれたときに発火するイベント
+    video.addEventListener('loadeddata', () => {
+        if (!isVideoReady) {
+            isVideoReady = true;
+            isCameraMode = true; // 映像が準備できたらカメラモードを確定
+            updateModeUI();
+            video.play();
+        }
+    });
+
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
-        // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = `var(--bright-color)`;
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
 
-        // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
         filterIconBottom.style.color = `var(--saturation-color)`;
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
         
-        // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
         filterIconLeft.style.color = `var(--hue-color)`;
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
 
-        // 色温度 (Temperature) - right
         const tempIntensity = Math.abs(temp);
         filterIconRight.style.color = `var(--warm-color)`;
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
     function render() {
-        if (isCameraMode && video.readyState >= 2) {
+        if (isCameraMode && isVideoReady) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         } else if (!isCameraMode && originalImage) {
@@ -448,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsDataURL(file);
         } else {
-            // ファイル選択がキャンセルされた場合、カメラモードに戻る
             isCameraMode = true;
             startCamera();
         }
@@ -466,8 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 描画ループは一度だけ開始
+    // 描画ループはアプリ起動時に一度だけ開始
     requestAnimationFrame(render);
-    // アプリ起動時にカメラの起動を試行
+    // カメラの起動を試行
     startCamera();
 });
