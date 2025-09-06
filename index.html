@@ -13,8 +13,18 @@
         <div id="circle-overlay">
             <div class="circle-line vertical"></div>
             <div class="circle-line horizontal"></div>
-            <div class="filter-icon top">💡</div> <div class="filter-icon bottom">💡</div>
-            <div class="filter-icon left">🌡️</div> <div class="filter-icon right">🌡️</div>
+            <div id="filter-icon-top" class="filter-icon top">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+            </div>
+            <div id="filter-icon-bottom" class="filter-icon bottom">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L12 22"/><path d="M22 12L2 12"/></svg>
+            </div>
+            <div id="filter-icon-left" class="filter-icon left">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2z"/><path d="M22 4v16a2 2 0 0 0 2 2H16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-2"/></svg>
+            </div>
+            <div id="filter-icon-right" class="filter-icon right">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.01L7 18L13 12"/><path d="M22 13.01L17 18L11 12"/></svg>
+            </div>
         </div>
         <div id="touch-indicator"></div>
         <div id="controls">
@@ -30,7 +40,7 @@
             </div>
             <div id="right-controls">
                 <button id="camera-switch-btn" class="btn" title="カメラ切り替え">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V5H4V12"/><circle cx="12" cy="12" r="3"/><path d="M10 12L10 17"/><path d="M14 12L14 17"/></svg>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 7v4.5"/><path d="M16 7v4.5"/><path d="M12 11.5v4"/><path d="M9.5 14h5"/></svg>
                 </button>
                 <button id="save-btn" class="btn hidden" title="保存">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10l5 5v11a2 2 0 0 1-2 2z"/><path d="M7 21v-4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4"/><path d="M16 12H8"/></svg>
