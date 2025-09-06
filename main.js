@@ -272,10 +272,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
         const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
 
-        const previewArea = document.getElementById('preview-area');
+        const source = isCameraMode ? video : originalImage;
+        let sourceAspect = 0;
+        if (source) {
+            sourceAspect = (source.videoWidth || source.width) / (source.videoHeight || source.height);
+        }
+
+        const screenAspect = canvas.width / canvas.height;
+        let cropX = 0, cropY = 0, cropW = 1, cropH = 1;
+
+        if (sourceAspect > screenAspect) { // ソース映像が横長の場合
+            cropH = screenAspect / sourceAspect;
+            cropY = (1.0 - cropH) / 2.0;
+        } else { // ソース映像が縦長の場合
+            cropW = sourceAspect / screenAspect;
+            cropX = (1.0 - cropW) / 2.0;
+        }
         
-        // プレビュー画面のアスペクト比を維持するため、WebGLシェーダーのクロップは無効化
-        gl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
+        // プレビュー画面のWebGL描画領域を調整
+        gl.uniform4f(cropRectLocation, cropX, cropY, cropW, cropH);
 
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -322,79 +337,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function captureFrame() {
-        const tempCanvas = document.createElement('canvas');
-        const tempGl = tempCanvas.getContext('webgl');
-        if (!tempGl) {
-            console.error('一時的なWebGLコンテキストの作成に失敗しました。');
-            return;
-        }
+        // 保存時、u_crop_rectをリセットして元画像全体をレンダリング
+        const originalCropRect = gl.getUniformLocation(program, 'u_crop_rect');
+        gl.uniform4f(originalCropRect, 0.0, 0.0, 1.0, 1.0);
         
         const source = isCameraMode ? video : originalImage;
         const sourceWidth = source.videoWidth || source.width;
         const sourceHeight = source.videoHeight || source.height;
 
+        const tempCanvas = document.createElement('canvas');
         tempCanvas.width = sourceWidth;
         tempCanvas.height = sourceHeight;
-        tempGl.viewport(0, 0, tempCanvas.width, tempCanvas.height);
+        const tempCtx = tempCanvas.getContext('2d');
 
-        const tempTexture = tempGl.createTexture();
-        tempGl.bindTexture(tempGl.TEXTURE_2D, tempTexture);
-        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_WRAP_S, tempGl.CLAMP_TO_EDGE);
-        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_WRAP_T, tempGl.CLAMP_TO_EDGE);
-        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_MIN_FILTER, tempGl.LINEAR);
-        tempGl.texImage2D(tempGl.TEXTURE_2D, 0, tempGl.RGBA, tempGl.RGBA, tempGl.UNSIGNED_BYTE, source);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, gl.createFramebuffer());
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 
-        const tempProgram = tempGl.createProgram();
-        const vertexShader = createShader(tempGl, tempGl.VERTEX_SHADER, vsSource);
-        const fragmentShader = createShader(tempGl, tempGl.FRAGMENT_SHADER, fsSource);
-        tempGl.attachShader(tempProgram, vertexShader);
-        tempGl.attachShader(tempProgram, fragmentShader);
-        tempGl.linkProgram(tempProgram);
-        tempGl.useProgram(tempProgram);
+        gl.uniform4f(gl.getUniformLocation(program, 'u_crop_rect'), 0.0, 0.0, 1.0, 1.0);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
         
-        const positionBuffer = tempGl.createBuffer();
-        tempGl.bindBuffer(tempGl.ARRAY_BUFFER, positionBuffer);
-        const positions = [-1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, -1];
-        tempGl.bufferData(tempGl.ARRAY_BUFFER, new Float32Array(positions), tempGl.STATIC_DRAW);
+        const pixels = new Uint8Array(sourceWidth * sourceHeight * 4);
+        gl.readPixels(0, 0, sourceWidth, sourceHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
 
-        const positionAttributeLocation = tempGl.getAttribLocation(tempProgram, 'a_position');
-        tempGl.enableVertexAttribArray(positionAttributeLocation);
-        tempGl.vertexAttribPointer(positionAttributeLocation, 2, tempGl.FLOAT, false, 0, 0);
-
-        // 保存時はクロップを行わない
-        const cropRectLocation = tempGl.getUniformLocation(tempProgram, 'u_crop_rect');
-        tempGl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
-
-        const brightnessLocation = tempGl.getUniformLocation(tempProgram, 'u_brightness');
-        const tempLocation = tempGl.getUniformLocation(tempProgram, 'u_temp');
-        const contrastLocation = tempGl.getUniformLocation(tempProgram, 'u_contrast');
-        const saturationLocation = tempGl.getUniformLocation(tempProgram, 'u_saturation');
-        const fadeLocation = tempGl.getUniformLocation(tempProgram, 'u_fade');
-        const hueShiftLocation = tempGl.getUniformLocation(tempProgram, 'u_hue_shift');
-
-        // プレビューのフィルター値を再適用
-        let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
-        if (lastProcessedPos) {
-            const normalizedX = lastProcessedPos.x;
-            const normalizedY = lastProcessedPos.y;
-            brightness = -(normalizedY - 0.5) * 2.0;
-            temp = (normalizedX - 0.5) * 2.0;
-            const distFromCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2)) * 2.0;
-            const clampedDistFromCenter = Math.min(distFromCenter, 1.0);
-            contrast = clampedDistFromCenter;
-            saturation = clampedDistFromCenter;
-            fade = clampedDistFromCenter * 0.5;
-            hue_shift = (normalizedX - 0.5) * 2.0;
+        const imageData = new ImageData(sourceWidth, sourceHeight);
+        for (let i = 0; i < pixels.length; i += 4) {
+            imageData.data[i] = pixels[i];
+            imageData.data[i + 1] = pixels[i + 1];
+            imageData.data[i + 2] = pixels[i + 2];
+            imageData.data[i + 3] = pixels[i + 3];
         }
 
-        tempGl.uniform1f(brightnessLocation, brightness);
-        tempGl.uniform1f(tempLocation, temp);
-        tempGl.uniform1f(contrastLocation, contrast);
-        tempGl.uniform1f(saturationLocation, saturation);
-        tempGl.uniform1f(fadeLocation, fade);
-        tempGl.uniform1f(hueShiftLocation, hue_shift);
-
-        tempGl.drawArrays(tempGl.TRIANGLES, 0, 6);
+        tempCtx.putImageData(imageData, 0, 0);
 
         const dataURL = tempCanvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -403,6 +376,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.uniform4f(originalCropRect, gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'), gl.getUniformLocation(program, 'u_crop_rect'));
     }
 
     let isTouching = false;
