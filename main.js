@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let texture = null;
     let isCapturing = false;
     let lastProcessedPos = null;
-    let isVideoReady = false; // 新しい状態変数
+    let isVideoPlaying = false; // 新しい状態変数
 
     if (!gl) {
         alert('WebGLは現在のブラウザでサポートされていません。');
@@ -195,11 +195,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         
-        isVideoReady = false; // カメラ起動を試みるたびにフラグをリセット
+        isVideoPlaying = false; // カメラ起動を試みるたびにフラグをリセット
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                };
             })
             .catch(err => {
                 console.error('カメラへのアクセスが拒否されました: ' + err);
@@ -210,14 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // カメラ映像が読み込まれたときに発火するイベント
-    video.addEventListener('loadeddata', () => {
-        if (!isVideoReady) {
-            isVideoReady = true;
-            isCameraMode = true; // 映像が準備できたらカメラモードを確定
-            updateModeUI();
-            video.play();
-        }
+    // カメラ映像が実際に再生されたときに発火するイベント
+    video.addEventListener('playing', () => {
+        isVideoPlaying = true;
+        isCameraMode = true;
+        updateModeUI();
     });
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
-        if (isCameraMode && isVideoReady) {
+        if (isCameraMode && isVideoPlaying) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         } else if (!isCameraMode && originalImage) {
@@ -424,6 +424,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isCameraMode) {
             startCamera();
         } else {
+            // カメラモードから写真編集モードに切り替える際、カメラストリームを停止
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            isVideoPlaying = false;
             updateModeUI();
             imageUpload.click();
         }
@@ -455,13 +460,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     shutterBtn.addEventListener('click', () => {
-        if (isCameraMode) {
+        if (isCameraMode && isVideoPlaying) {
             isCapturing = true;
         }
     });
     
     saveBtn.addEventListener('click', () => {
-        if (!isCameraMode) {
+        if (!isCameraMode && originalImage) {
             isCapturing = true;
         }
     });
