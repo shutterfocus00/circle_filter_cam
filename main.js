@@ -274,25 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const previewArea = document.getElementById('preview-area');
         
-        // プレビュー画面の縦伸びを防ぐためのアスペクト比計算
-        const screenAspect = previewArea.offsetWidth / previewArea.offsetHeight;
-        let sourceAspect = 0;
-        if (isCameraMode) {
-            sourceAspect = video.videoWidth / video.videoHeight;
-        } else if (originalImage) {
-            sourceAspect = originalImage.width / originalImage.height;
-        }
-
-        let cropX = 0, cropY = 0, cropW = 1, cropH = 1;
-        if (sourceAspect > screenAspect) { // ソースが横長
-            cropW = screenAspect / sourceAspect;
-            cropX = (1.0 - cropW) / 2.0;
-        } else { // ソースが縦長
-            cropH = sourceAspect / screenAspect;
-            cropY = (1.0 - cropH) / 2.0;
-        }
-
-        gl.uniform4f(cropRectLocation, cropX, cropY, cropW, cropH);
+        // プレビュー画面のアスペクト比を維持するため、WebGLシェーダーのクロップは無効化
+        gl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
 
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -339,31 +322,79 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function captureFrame() {
-        // 等倍表示のクロップ設定を適用して撮影
         const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        const previewArea = document.getElementById('preview-area');
-        
-        const source = isCameraMode ? video : originalImage;
-        const sourceAspect = source.videoWidth / source.videoHeight || source.width / source.height;
-        const previewAspect = previewArea.offsetWidth / previewArea.offsetHeight;
-        
-        let sx = 0, sy = 0, sWidth = source.videoWidth || source.width, sHeight = source.videoHeight || source.height;
-        let dx = 0, dy = 0, dWidth = tempCanvas.width, dHeight = tempCanvas.height;
-        
-        // ソース画像をプレビュー画面と同じアスペクト比でクロップ
-        if (sourceAspect > previewAspect) {
-            sWidth = sHeight * previewAspect;
-            sx = ((source.videoWidth || source.width) - sWidth) / 2;
-        } else {
-            sHeight = sWidth / previewAspect;
-            sy = ((source.videoHeight || source.height) - sHeight) / 2;
+        const tempGl = tempCanvas.getContext('webgl');
+        if (!tempGl) {
+            console.error('一時的なWebGLコンテキストの作成に失敗しました。');
+            return;
         }
         
-        tempCanvas.width = sWidth;
-        tempCanvas.height = sHeight;
+        const source = isCameraMode ? video : originalImage;
+        const sourceWidth = source.videoWidth || source.width;
+        const sourceHeight = source.videoHeight || source.height;
+
+        tempCanvas.width = sourceWidth;
+        tempCanvas.height = sourceHeight;
+        tempGl.viewport(0, 0, tempCanvas.width, tempCanvas.height);
+
+        const tempTexture = tempGl.createTexture();
+        tempGl.bindTexture(tempGl.TEXTURE_2D, tempTexture);
+        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_WRAP_S, tempGl.CLAMP_TO_EDGE);
+        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_WRAP_T, tempGl.CLAMP_TO_EDGE);
+        tempGl.texParameteri(tempGl.TEXTURE_2D, tempGl.TEXTURE_MIN_FILTER, tempGl.LINEAR);
+        tempGl.texImage2D(tempGl.TEXTURE_2D, 0, tempGl.RGBA, tempGl.RGBA, tempGl.UNSIGNED_BYTE, source);
+
+        const tempProgram = tempGl.createProgram();
+        const vertexShader = createShader(tempGl, tempGl.VERTEX_SHADER, vsSource);
+        const fragmentShader = createShader(tempGl, tempGl.FRAGMENT_SHADER, fsSource);
+        tempGl.attachShader(tempProgram, vertexShader);
+        tempGl.attachShader(tempProgram, fragmentShader);
+        tempGl.linkProgram(tempProgram);
+        tempGl.useProgram(tempProgram);
         
-        tempCtx.drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+        const positionBuffer = tempGl.createBuffer();
+        tempGl.bindBuffer(tempGl.ARRAY_BUFFER, positionBuffer);
+        const positions = [-1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, -1];
+        tempGl.bufferData(tempGl.ARRAY_BUFFER, new Float32Array(positions), tempGl.STATIC_DRAW);
+
+        const positionAttributeLocation = tempGl.getAttribLocation(tempProgram, 'a_position');
+        tempGl.enableVertexAttribArray(positionAttributeLocation);
+        tempGl.vertexAttribPointer(positionAttributeLocation, 2, tempGl.FLOAT, false, 0, 0);
+
+        // 保存時はクロップを行わない
+        const cropRectLocation = tempGl.getUniformLocation(tempProgram, 'u_crop_rect');
+        tempGl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
+
+        const brightnessLocation = tempGl.getUniformLocation(tempProgram, 'u_brightness');
+        const tempLocation = tempGl.getUniformLocation(tempProgram, 'u_temp');
+        const contrastLocation = tempGl.getUniformLocation(tempProgram, 'u_contrast');
+        const saturationLocation = tempGl.getUniformLocation(tempProgram, 'u_saturation');
+        const fadeLocation = tempGl.getUniformLocation(tempProgram, 'u_fade');
+        const hueShiftLocation = tempGl.getUniformLocation(tempProgram, 'u_hue_shift');
+
+        // プレビューのフィルター値を再適用
+        let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
+        if (lastProcessedPos) {
+            const normalizedX = lastProcessedPos.x;
+            const normalizedY = lastProcessedPos.y;
+            brightness = -(normalizedY - 0.5) * 2.0;
+            temp = (normalizedX - 0.5) * 2.0;
+            const distFromCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2)) * 2.0;
+            const clampedDistFromCenter = Math.min(distFromCenter, 1.0);
+            contrast = clampedDistFromCenter;
+            saturation = clampedDistFromCenter;
+            fade = clampedDistFromCenter * 0.5;
+            hue_shift = (normalizedX - 0.5) * 2.0;
+        }
+
+        tempGl.uniform1f(brightnessLocation, brightness);
+        tempGl.uniform1f(tempLocation, temp);
+        tempGl.uniform1f(contrastLocation, contrast);
+        tempGl.uniform1f(saturationLocation, saturation);
+        tempGl.uniform1f(fadeLocation, fade);
+        tempGl.uniform1f(hueShiftLocation, hue_shift);
+
+        tempGl.drawArrays(tempGl.TRIANGLES, 0, 6);
 
         const dataURL = tempCanvas.toDataURL('image/png');
         const link = document.createElement('a');
