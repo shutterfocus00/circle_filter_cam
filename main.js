@@ -192,14 +192,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
                 facingMode: currentFacingMode
-            }
+            },
+            audio: false
         };
         
-        isVideoPlaying = false; // カメラ起動を試みるたびにフラグをリセット
+        isVideoPlaying = false;
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 video.srcObject = stream;
+                video.setAttribute('playsinline', ''); // iOS対策
+                video.muted = true;
                 video.onloadedmetadata = () => {
                     video.play();
                 };
@@ -213,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // カメラ映像が実際に再生されたときに発火するイベント
     video.addEventListener('playing', () => {
         isVideoPlaying = true;
         isCameraMode = true;
@@ -239,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
-        if (isCameraMode && isVideoPlaying) {
+        if (isCameraMode && isVideoPlaying && video.readyState >= video.HAVE_ENOUGH_DATA) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
         } else if (!isCameraMode && originalImage) {
@@ -395,84 +397,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateModeUI() {
         if (isCameraMode) {
-            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
-            modeToggleBtn.setAttribute('title', '写真編集モード');
-            shutterBtn.classList.remove('hidden');
-            saveBtn.classList.add('hidden');
-            cameraSwitchBtn.classList.remove('hidden');
-            imageUpload.classList.add('hidden');
-        } else {
-            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-            modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
-            shutterBtn.classList.add('hidden');
-            saveBtn.classList.remove('hidden');
-            cameraSwitchBtn.classList.add('hidden');
-            imageUpload.classList.remove('hidden');
-        }
-        lastProcessedPos = null;
-        gl.uniform1f(brightnessLocation, 0.0);
-        gl.uniform1f(tempLocation, 0.0);
-        gl.uniform1f(contrastLocation, 0.0);
-        gl.uniform1f(saturationLocation, 0.0);
-        gl.uniform1f(fadeLocation, 0.0);
-        gl.uniform1f(hueShiftLocation, 0.0);
-        updateFilterIcons(0, 0, 0, 0, 0, 0);
-    }
-
-    modeToggleBtn.addEventListener('click', () => {
-        isCameraMode = !isCameraMode;
-        if (isCameraMode) {
-            startCamera();
-        } else {
-            // カメラモードから写真編集モードに切り替える際、カメラストリームを停止
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
-            isVideoPlaying = false;
-            updateModeUI();
-            imageUpload.click();
-        }
-    });
-    
-    cameraSwitchBtn.addEventListener('click', () => {
-        currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-        startCamera();
-    });
-
-    imageUpload.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    originalImage = img;
-                    gl.bindTexture(gl.TEXTURE_2D, texture);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        } else {
-            isCameraMode = true;
-            startCamera();
-        }
-    });
-
-    shutterBtn.addEventListener('click', () => {
-        if (isCameraMode && isVideoPlaying) {
-            isCapturing = true;
-        }
-    });
-    
-    saveBtn.addEventListener('click', () => {
-        if (!isCameraMode && originalImage) {
-            isCapturing = true;
-        }
-    });
-
-    // 描画ループはアプリ起動時に一度だけ開始
-    requestAnimationFrame(render);
-    // カメラの起動を試行
-    startCamera();
-});
+            modeToggleBtn.innerHTML = '<svg class="icon"
