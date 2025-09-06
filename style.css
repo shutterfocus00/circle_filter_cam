@@ -36,27 +36,30 @@ html, body {
     flex-direction: column;
 }
 
-/* プレビュー領域 */
+/* プレビュー領域 - flex-growを5に設定 */
 #preview-area {
     position: relative;
-    flex-grow: 1; /* 残りのスペースをすべて占有 */
+    flex: 5; /* 画面全体の5/7を占有 */
     width: 100%;
-    overflow: hidden;
+    display: flex; /* 中央に配置するためにFlexboxを使用 */
+    justify-content: center;
+    align-items: center;
+    overflow: hidden; /* はみ出した部分は非表示 */
 }
 
+/* キャンバスとビデオをプレビューエリアの中央に配置 */
 #gl-canvas, #video-feed {
-    position: absolute;
-    top: 0;
-    left: 0;
+    position: relative; /* absoluteからrelativeに変更 */
     width: 100%;
     height: 100%;
     object-fit: contain; /* アスペクト比を維持し、全体を表示 */
     z-index: 1;
 }
 
-/* フィルター操作領域 */
+/* フィルター操作領域 - flex-growを1に設定 */
 #filter-area {
     position: relative;
+    flex: 1; /* 画面全体の1/7を占有 */
     width: 100%;
     padding: 20px;
     display: flex;
@@ -69,7 +72,7 @@ html, body {
 #filter-rectangle {
     width: 90%;
     max-width: 400px;
-    height: 150px;
+    height: 100%; /* 親要素に合わせる */
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
@@ -127,9 +130,10 @@ html, body {
     transform: translate(-50%, -50%); /* Centering the circle */
 }
 
-/* 撮影・コントロール領域 */
+/* 撮影・コントロール領域 - flex-growを1に設定 */
 #control-area {
     display: flex;
+    flex: 1; /* 画面全体の1/7を占有 */
     justify-content: space-around;
     align-items: center;
     width: 100%;
