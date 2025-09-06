@@ -205,39 +205,42 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(err => {
                 alert('カメラへのアクセスが拒否されました: ' + err);
-                // エラー時は写真編集モードに切り替えるか、代替画像をロードするなどの処理
                 isCameraMode = false;
                 updateModeUI();
-                imageUpload.click(); // 画像アップロードを促す
+                imageUpload.click();
             });
     }
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
-        // 各フィルター効果の強さに応じてアイコンのスタイルを更新
-        const baseOpacity = 0.4;
-        const activeOpacity = 1.0;
-        const activeScale = 1.2;
+        const baseColor = '#fff';
+        const brightColor = '#FFD700'; // 太陽
+        const warmColor = '#FF4500'; // 焚き火
+        const coolColor = '#87CEEB'; // 雪
+        const saturationColor = '#ADFF2F'; // 月
 
         // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
-        filterIconTop.style.opacity = baseOpacity + brightnessIntensity * (activeOpacity - baseOpacity);
-        filterIconTop.style.transform = `translate(-50%, -50%) scale(${1.0 + brightnessIntensity * (activeScale - 1.0)})`;
+        filterIconTop.style.color = `mix(${baseColor}, ${brightColor}, ${brightnessIntensity})`;
 
-        // コントラスト/彩度/フェード (Contrast/Saturation/Fade) - bottom
+        // コントラスト/彩度/フェード - bottom
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
-        filterIconBottom.style.opacity = baseOpacity + bottomIntensity * (activeOpacity - baseOpacity);
-        filterIconBottom.style.transform = `translate(-50%, -50%) scale(${1.0 + bottomIntensity * (activeScale - 1.0)})`;
-
-        // 色温度 (Temperature) - right
-        const tempIntensity = Math.abs(temp);
-        filterIconRight.style.opacity = baseOpacity + tempIntensity * (activeOpacity - baseOpacity);
-        filterIconRight.style.transform = `translate(-50%, -50%) scale(${1.0 + tempIntensity * (activeScale - 1.0)})`;
+        filterIconBottom.style.color = `mix(${baseColor}, ${saturationColor}, ${bottomIntensity})`;
         
         // 色相 (Hue Shift) - left
         const hueShiftIntensity = Math.abs(hue_shift);
-        filterIconLeft.style.opacity = baseOpacity + hueShiftIntensity * (activeOpacity - baseOpacity);
-        filterIconLeft.style.transform = `translate(-50%, -50%) scale(${1.0 + hueShiftIntensity * (activeScale - 1.0)})`;
+        filterIconLeft.style.color = `mix(${baseColor}, ${coolColor}, ${hueShiftIntensity})`;
+
+        // 色温度 (Temperature) - right
+        const tempIntensity = Math.abs(temp);
+        filterIconRight.style.color = `mix(${baseColor}, ${warmColor}, ${tempIntensity})`;
+
+        // アイコンの拡大縮小も追加で維持
+        filterIconTop.style.transform = `translate(-50%, -50%) scale(${1.0 + brightnessIntensity * 0.2})`;
+        filterIconBottom.style.transform = `translate(-50%, -50%) scale(${1.0 + bottomIntensity * 0.2})`;
+        filterIconLeft.style.transform = `translate(-50%, -50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
+        filterIconRight.style.transform = `translate(-50%, -50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
+
 
     function render() {
         if (isCameraMode && video.readyState >= 2) {
@@ -264,15 +267,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const normalizedX = (lastProcessedPos.x - circleCenterX) / circleRadius;
             const normalizedY = (lastProcessedPos.y - circleCenterY) / circleRadius;
 
-            brightness = -normalizedY; // Y軸で明るさ
-            temp = normalizedX; // X軸で色温度
+            brightness = -normalizedY;
+            temp = normalizedX;
             
             const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-            // 中心からの距離でコントラスト、彩度、フェード、色相を調整
             contrast = distFromCenter;
             saturation = distFromCenter;
             fade = distFromCenter * 0.5;
-            hue_shift = normalizedX * 0.5; // X軸のずれで色相を調整
+            hue_shift = normalizedX * 0.5;
         }
 
         gl.uniform1f(brightnessLocation, brightness);
@@ -282,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.uniform1f(fadeLocation, fade);
         gl.uniform1f(hueShiftLocation, hue_shift);
 
-        updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift); // アイコンの更新
+        updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         
@@ -308,7 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let touchPoint = null;
 
     function handleStart(e) {
-        // ボタンに対するタッチイベントは無視
         const targetTagName = e.target.tagName.toLowerCase();
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
             return;
@@ -357,14 +358,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 touchIndicator.style.opacity = 0;
                 lastProcessedPos = null;
-                // タッチがサークル外に出た場合、全てのフィルター効果をリセット
                 gl.uniform1f(brightnessLocation, 0.0);
                 gl.uniform1f(tempLocation, 0.0);
                 gl.uniform1f(contrastLocation, 0.0);
                 gl.uniform1f(saturationLocation, 0.0);
                 gl.uniform1f(fadeLocation, 0.0);
                 gl.uniform1f(hueShiftLocation, 0.0);
-                updateFilterIcons(0, 0, 0, 0, 0, 0); // アイコンもリセット
+                updateFilterIcons(0, 0, 0, 0, 0, 0);
                 return;
             }
         }
@@ -384,14 +384,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        // lastProcessedPos は保持し、効果を維持する
     }
     
     canvas.addEventListener('mousedown', handleStart);
     canvas.addEventListener('mousemove', handleMove);
     canvas.addEventListener('mouseup', handleEnd);
     canvas.addEventListener('mouseleave', handleEnd);
-    canvas.addEventListener('touchstart', handleStart, { passive: false }); // { passive: false } を追加してpreventDefaultを可能に
+    canvas.addEventListener('touchstart', handleStart, { passive: false });
     canvas.addEventListener('touchmove', handleMove, { passive: false });
     canvas.addEventListener('touchend', handleEnd);
 
@@ -401,13 +400,13 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
         touchPoint = null;
-        updateFilterIcons(0, 0, 0, 0, 0, 0); // リサイズ時もアイコンをリセット
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
     });
     window.dispatchEvent(new Event('resize'));
 
     function updateModeUI() {
         if (isCameraMode) {
-            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>'; // 写真編集モードへの切り替えアイコン (アルバム/編集のようなイメージ)
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
             modeToggleBtn.setAttribute('title', '写真編集モード');
             shutterBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
@@ -415,15 +414,14 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.add('hidden');
             startCamera();
         } else {
-            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'; // リアルタイム撮影モードへの切り替えアイコン (カメラのようなイメージ)
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
             modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
             shutterBtn.classList.add('hidden');
             saveBtn.classList.remove('hidden');
             cameraSwitchBtn.classList.add('hidden');
-            imageUpload.classList.remove('hidden'); // 画像アップロードボタンを表示
-            imageUpload.click(); // 自動でファイル選択ダイアログを開く
+            imageUpload.classList.remove('hidden');
+            imageUpload.click();
         }
-        // モードが切り替わったらフィルター効果をリセット
         lastProcessedPos = null;
         gl.uniform1f(brightnessLocation, 0.0);
         gl.uniform1f(tempLocation, 0.0);
@@ -431,9 +429,8 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.uniform1f(saturationLocation, 0.0);
         gl.uniform1f(fadeLocation, 0.0);
         gl.uniform1f(hueShiftLocation, 0.0);
-        updateFilterIcons(0, 0, 0, 0, 0, 0); // アイコンもリセット
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
     }
-
 
     modeToggleBtn.addEventListener('click', () => {
         isCameraMode = !isCameraMode;
@@ -453,7 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = new Image();
                 img.onload = () => {
                     originalImage = img;
-                    // 画像の縦横比を考慮してキャンバスを更新
                     const imgAspectRatio = img.width / img.height;
                     const canvasAspectRatio = canvas.width / canvas.height;
 
@@ -466,12 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         targetWidth = canvas.height * imgAspectRatio;
                     }
 
-                    // WebGLテクスチャを更新
                     gl.bindTexture(gl.TEXTURE_2D, texture);
                     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
-
-                    // ビューポートを調整して画像を中央に表示（オプション）
-                    // gl.viewport((canvas.width - targetWidth) / 2, (canvas.height - targetHeight) / 2, targetWidth, targetHeight);
                     
                     render();
                 };
@@ -479,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsDataURL(file);
         } else {
-            // ファイルが選択されなかった場合の処理 (例: カメラモードに戻す)
             isCameraMode = true;
             updateModeUI();
         }
@@ -497,7 +488,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 起動時にカメラを起動し、UIを更新
-    isCameraMode = true; // 明示的にカメラモードで開始
+    isCameraMode = true;
     updateModeUI();
 });
