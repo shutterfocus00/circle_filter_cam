@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageUpload = document.getElementById('image-upload');
     const touchIndicator = document.getElementById('touch-indicator');
     const circleOverlay = document.getElementById('circle-overlay');
+    const filterIconTop = document.getElementById('filter-icon-top');
+    const filterIconBottom = document.getElementById('filter-icon-bottom');
+    const filterIconLeft = document.getElementById('filter-icon-left');
+    const filterIconRight = document.getElementById('filter-icon-right');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
@@ -16,12 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('WebGLは現在のブラウザでサポートされていません。');
         return;
     }
-
-    // フィルターアイコンの取得
-    const filterIconTop = document.getElementById('filter-icon-top');
-    const filterIconBottom = document.getElementById('filter-icon-bottom');
-    const filterIconLeft = document.getElementById('filter-icon-left');
-    const filterIconRight = document.getElementById('filter-icon-right');
 
     // グローバル状態変数
     let isCameraMode = true;
@@ -145,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initWebGL() {
         const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
         const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-
         const program = gl.createProgram();
         gl.attachShader(program, vertexShader);
         gl.attachShader(program, fragmentShader);
@@ -181,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return shader;
     }
 
-    // ⭐ ビデオフレームをテクスチャとして更新する専用のループ関数
+    // ⭐ 修正箇所: `renderVideoFrame`の呼び出しタイミングを`video.onloadedmetadata`に依存させる
     function renderVideoFrame() {
         if (!isCameraMode || !video.srcObject) return;
 
@@ -198,47 +195,38 @@ document.addEventListener('DOMContentLoaded', () => {
         video.requestVideoFrameCallback(renderVideoFrame);
     }
 
-    // ⭐ カメラ起動ロジックを非同期関数に整理
-    async function startCamera() {
+    // カメラ起動ロジック
+    function startCamera() {
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        try {
-            const constraints = {
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: currentFacingMode
-                }
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: currentFacingMode
+            }
+        };
 
-            // video.play()は非同期処理
-            video.play().then(() => {
-                // play()が成功したらフレーム更新ループを開始
-                video.requestVideoFrameCallback(renderVideoFrame);
-                updateModeUI();
-            }).catch(e => {
-                console.error('ビデオ再生に失敗しました:', e);
-                // プレイに失敗した場合でも、ユーザーにモード切替を促す
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(stream => {
+                video.srcObject = stream;
+                // ⭐ 修正箇所: videoが再生可能になったらrenderVideoFrameを開始
+                video.onloadedmetadata = () => {
+                    video.play();
+                    video.requestVideoFrameCallback(renderVideoFrame);
+                };
+            })
+            .catch(err => {
+                console.error('カメラへのアクセスが拒否されました: ' + err);
                 isCameraMode = false;
                 updateModeUI();
-                alert('カメラの起動に失敗しました。写真編集モードに切り替えます。');
+                alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
                 imageUpload.click();
             });
-
-        } catch (err) {
-            console.error('カメラへのアクセスが拒否されました: ' + err);
-            isCameraMode = false;
-            updateModeUI();
-            alert('カメラへのアクセスが拒否されました。写真編集モードに切り替えます。');
-            imageUpload.click();
-        }
     }
 
-    // ⭐ フィルターアイコンのスタイル更新
     const rootStyles = getComputedStyle(document.documentElement);
     function getCSSVar(name) {
         return rootStyles.getPropertyValue(name).trim();
@@ -262,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
-    // ⭐ WebGLの描画ループ（フィルターパラメータの更新と描画）
     function render() {
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -276,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let fade = 0.0;
         let hue_shift = 0.0;
         
+        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         const brightnessLocation = gl.getUniformLocation(program, 'u_brightness');
         const tempLocation = gl.getUniformLocation(program, 'u_temp');
         const contrastLocation = gl.getUniformLocation(program, 'u_contrast');
@@ -323,7 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(render);
     }
     
-    // ⭐ スクリーンショットを保存
     function captureFrame() {
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -334,7 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(link);
     }
 
-    // タッチイベントの処理
     let isTouching = false;
     let touchPoint = null;
 
@@ -408,13 +394,13 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('touchmove', handleMove, { passive: false });
     canvas.addEventListener('touchend', handleEnd);
 
-    // ウィンドウリサイズイベント
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
         touchPoint = null;
+        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
@@ -442,6 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
         }
         lastProcessedPos = null;
+        const program = gl.getProgram(gl.getParameter(gl.CURRENT_PROGRAM));
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
