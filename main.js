@@ -261,13 +261,12 @@ document.addEventListener('DOMContentLoaded', () => {
             temp = normalizedX;
             
             const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-            // distFromCenterが1.0を超えないようにクランプ
             const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
 
             contrast = clampedDistFromCenter;
             saturation = clampedDistFromCenter;
             fade = clampedDistFromCenter * 0.5;
-            hue_shift = normalizedX * 0.5; // 色相はX座標に依存
+            hue_shift = normalizedX * 0.5;
         }
 
         gl.uniform1f(brightnessLocation, brightness);
@@ -362,11 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        // lastProcessedPosはリセットしないことで、最後のフィルター効果を維持
-        // 必要に応じて、ここでフィルター値をリセットするロジックを追加できます
-        // 例: lastProcessedPos = null;
-        //     gl.uniform1f(brightnessLocation, 0.0); // など
-        // 現在はタッチ終了時にフィルターが残る仕様
     }
     
     canvas.addEventListener('mousedown', handleStart);
@@ -381,7 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
-        // リサイズ時はフィルターをリセット
         lastProcessedPos = null;
         touchPoint = null;
         gl.uniform1f(brightnessLocation, 0.0);
@@ -412,7 +405,6 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
             imageUpload.click();
         }
-        // モード切り替え時もフィルターをリセット
         lastProcessedPos = null;
         gl.uniform1f(brightnessLocation, 0.0);
         gl.uniform1f(tempLocation, 0.0);
@@ -466,6 +458,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // アプリ起動時にリアルタイム撮影モードを有効化
     isCameraMode = true;
+    startCamera();
     updateModeUI();
 });
