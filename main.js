@@ -265,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
-    let touchPoint = null; // 💡追加: 指がサークル内にあるか判定するための変数
+    let touchPoint = null;
 
     function handleStart(e) {
         isTouching = true;
@@ -294,15 +294,12 @@ document.addEventListener('DOMContentLoaded', () => {
             Math.pow(y - circleCenterY, 2)
         );
 
-        // 💡 修正: サークル内をタッチした場合のみ、touchPointを更新
         if (distFromCenter <= circleRadius) {
             touchPoint = { x, y };
-            // タッチインジケーターをタッチ位置に表示
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
             touchIndicator.style.opacity = 1;
         } else {
-            // 💡 修正: サークル外に出たら、touchPointは最後の有効な位置を保持し、インジケーターを外縁にクランプ
             if (touchPoint) {
                 const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
                 const clampedX = circleCenterX + circleRadius * Math.cos(angle);
@@ -313,7 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 touchIndicator.style.top = `${clampedY}px`;
                 touchIndicator.style.opacity = 1;
             } else {
-                // サークル外を最初にタッチした場合、何もしない
                 touchIndicator.style.opacity = 0;
                 lastProcessedPos = null;
                 return;
@@ -322,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         lastProcessedPos = touchPoint;
 
-        // 振動ロジック
         if (navigator.vibrate) {
             const normalizedDist = distFromCenter / circleRadius;
             if (normalizedDist > 0.95 && normalizedDist <= 1.0) {
@@ -336,8 +331,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        lastProcessedPos = null;
-        touchPoint = null;
+        // 💡 修正: タッチ終了時に lastProcessedPos をリセットしない
+        // lastProcessedPos = null;
     }
     
     canvas.addEventListener('mousedown', handleStart);
