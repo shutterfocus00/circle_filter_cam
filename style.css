@@ -187,19 +187,6 @@ body {
   transform: translateY(-50%);
 }
 
-#touch-indicator {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: var(--accent-color);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s, transform 0.1s;
-  box-shadow: 0 0 10px var(--accent-color);
-}
-
 #particles-canvas {
   position: absolute;
   top: 0;
@@ -208,4 +195,3 @@ body {
   height: 100%;
   pointer-events: none;
 }
-
