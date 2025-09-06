@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
+    const startScreen = document.getElementById('start-screen');
+    const startCameraButton = document.getElementById('start-camera-button');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
