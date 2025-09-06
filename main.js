@@ -48,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float u_saturation;
         uniform float u_fade;
         uniform float u_hue_shift;
-        uniform vec4 u_crop_rect;
         varying vec2 v_texCoord;
         
         vec3 rgb2hsl(vec3 color) {
@@ -108,17 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         void main() {
-            vec2 texCoord = v_texCoord;
-            
-            // クロップ処理を追加
-            vec2 croppedTexCoord = u_crop_rect.xy + texCoord * u_crop_rect.zw;
-            if (croppedTexCoord.x < 0.0 || croppedTexCoord.x > 1.0 ||
-                croppedTexCoord.y < 0.0 || croppedTexCoord.y > 1.0) {
-                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); // 範囲外は黒
-                return;
-            }
-            
-            vec4 original_color = texture2D(u_image, vec2(croppedTexCoord.x, 1.0 - croppedTexCoord.y));
+            vec4 original_color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
             vec4 final_color = original_color;
 
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
@@ -209,8 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const constraints = {
             video: {
-                width: { ideal: window.innerWidth },
-                height: { ideal: window.innerHeight },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
                 facingMode: currentFacingMode
             }
         };
@@ -269,27 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
         const fadeLocation = gl.getUniformLocation(program, 'u_fade');
         const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
-        const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
-
-        const source = isCameraMode ? video : originalImage;
-        let sourceAspect = 1;
-        if (source) {
-            sourceAspect = (source.videoWidth || source.width) / (source.videoHeight || source.height);
-        }
-
-        const screenAspect = canvas.width / canvas.height;
-        let cropX = 0, cropY = 0, cropW = 1, cropH = 1;
-
-        if (sourceAspect > screenAspect) { // ソース映像が横長の場合
-            cropH = screenAspect / sourceAspect;
-            cropY = (1.0 - cropH) / 2.0;
-        } else { // ソース映像が縦長の場合
-            cropW = sourceAspect / screenAspect;
-            cropX = (1.0 - cropW) / 2.0;
-        }
         
-        // プレビュー画面のWebGL描画領域を調整
-        gl.uniform4f(cropRectLocation, cropX, cropY, cropW, cropH);
+        // プレビュー画面のアスペクト比維持はCSSに任せるため、WebGLのクロップは行わない
+        const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
+        if (cropRectLocation) { // シェーダーにu_crop_rectがある場合のみ
+            gl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
+        }
 
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -358,11 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_WRAP_T, offscreenGl.CLAMP_TO_EDGE);
         offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_MIN_FILTER, offscreenGl.LINEAR);
         offscreenGl.texImage2D(offscreenGl.TEXTURE_2D, 0, offscreenGl.RGBA, offscreenGl.RGBA, offscreenGl.UNSIGNED_BYTE, source);
-
-        offscreenGl.uniform1i(offscreenGl.getUniformLocation(offscreenProgram, 'u_image'), 0);
-        
-        // 保存時はクロップを行わない
-        offscreenGl.uniform4f(offscreenGl.getUniformLocation(offscreenProgram, 'u_crop_rect'), 0.0, 0.0, 1.0, 1.0);
 
         // プレビューのフィルター値を再適用
         let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
