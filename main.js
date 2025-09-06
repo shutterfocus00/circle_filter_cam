@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.error('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+            console.error('An error occurred compiling the shaders: ' + gl.getInfoLog(shader));
             gl.deleteShader(shader);
             return null;
         }
@@ -211,8 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift) {
-        const root = document.documentElement;
-
         // 明るさ (Brightness) - top
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = `mix(var(--base-color), var(--bright-color), ${brightnessIntensity})`;
@@ -263,10 +261,13 @@ document.addEventListener('DOMContentLoaded', () => {
             temp = normalizedX;
             
             const distFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-            contrast = distFromCenter;
-            saturation = distFromCenter;
-            fade = distFromCenter * 0.5;
-            hue_shift = normalizedX * 0.5;
+            // distFromCenterが1.0を超えないようにクランプ
+            const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
+
+            contrast = clampedDistFromCenter;
+            saturation = clampedDistFromCenter;
+            fade = clampedDistFromCenter * 0.5;
+            hue_shift = normalizedX * 0.5; // 色相はX座標に依存
         }
 
         gl.uniform1f(brightnessLocation, brightness);
@@ -336,22 +337,16 @@ document.addEventListener('DOMContentLoaded', () => {
             touchPoint = { x, y };
             touchIndicator.style.left = `${x}px`;
             touchIndicator.style.top = `${y}px`;
-            touchIndicator.style.opacity = 1;
         } else {
-            if (touchPoint) {
-                const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
-                const clampedX = circleCenterX + circleRadius * Math.cos(angle);
-                const clampedY = circleCenterY + circleRadius * Math.sin(angle);
-                touchPoint = { x: clampedX, y: clampedY };
-                
-                touchIndicator.style.left = `${clampedX}px`;
-                touchIndicator.style.top = `${clampedY}px`;
-                touchIndicator.style.opacity = 1;
-            } else {
-                touchIndicator.style.opacity = 0;
-            }
+            const angle = Math.atan2(y - circleCenterY, x - circleCenterX);
+            const clampedX = circleCenterX + circleRadius * Math.cos(angle);
+            const clampedY = circleCenterY + circleRadius * Math.sin(angle);
+            touchPoint = { x: clampedX, y: clampedY };
+            
+            touchIndicator.style.left = `${clampedX}px`;
+            touchIndicator.style.top = `${clampedY}px`;
         }
-        
+        touchIndicator.style.opacity = 1;
         lastProcessedPos = touchPoint;
 
         if (navigator.vibrate) {
@@ -367,14 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        lastProcessedPos = null;
-        gl.uniform1f(brightnessLocation, 0.0);
-        gl.uniform1f(tempLocation, 0.0);
-        gl.uniform1f(contrastLocation, 0.0);
-        gl.uniform1f(saturationLocation, 0.0);
-        gl.uniform1f(fadeLocation, 0.0);
-        gl.uniform1f(hueShiftLocation, 0.0);
-        updateFilterIcons(0, 0, 0, 0, 0, 0);
+        // lastProcessedPosはリセットしないことで、最後のフィルター効果を維持
+        // 必要に応じて、ここでフィルター値をリセットするロジックを追加できます
+        // 例: lastProcessedPos = null;
+        //     gl.uniform1f(brightnessLocation, 0.0); // など
+        // 現在はタッチ終了時にフィルターが残る仕様
     }
     
     canvas.addEventListener('mousedown', handleStart);
@@ -389,8 +381,15 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
+        // リサイズ時はフィルターをリセット
         lastProcessedPos = null;
         touchPoint = null;
+        gl.uniform1f(brightnessLocation, 0.0);
+        gl.uniform1f(tempLocation, 0.0);
+        gl.uniform1f(contrastLocation, 0.0);
+        gl.uniform1f(saturationLocation, 0.0);
+        gl.uniform1f(fadeLocation, 0.0);
+        gl.uniform1f(hueShiftLocation, 0.0);
         updateFilterIcons(0, 0, 0, 0, 0, 0);
     });
     window.dispatchEvent(new Event('resize'));
@@ -413,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
             imageUpload.click();
         }
+        // モード切り替え時もフィルターをリセット
         lastProcessedPos = null;
         gl.uniform1f(brightnessLocation, 0.0);
         gl.uniform1f(tempLocation, 0.0);
