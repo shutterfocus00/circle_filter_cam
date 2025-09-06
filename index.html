@@ -11,46 +11,44 @@
 </head>
 <body>
     <div id="app-container">
-        <canvas id="gl-canvas"></canvas>
-        <video id="video-feed" autoplay playsinline class="hidden"></video>
+        <div id="preview-area">
+            <canvas id="gl-canvas"></canvas>
+            <video id="video-feed" autoplay playsinline class="hidden"></video>
+        </div>
 
-        <div id="ui-container">
-            <div id="preview-container">
-                </div>
-            
+        <div id="filter-area">
             <div id="filter-rectangle">
                 <div id="filter-icon-left" class="filter-icon">🌈</div>
                 <div id="filter-icon-right" class="filter-icon">☀️</div>
                 <div id="filter-icon-top" class="filter-icon">💡</div>
                 <div id="filter-icon-bottom" class="filter-icon">🎨</div>
             </div>
-
-            <div id="control-panel">
-                <button id="mode-toggle-btn" title="写真編集モード">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/>
-                    </svg>
-                </button>
-                <button id="camera-switch-btn" title="カメラ切り替え">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
-                    </svg>
-                </button>
-                <button id="shutter-btn" title="シャッター">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 2a10 10 0 0 0-9 14.5A10 10 0 0 0 12 22a10 10 0 0 0 9-14.5A10 10 0 0 0 12 2z" opacity=".2"/>
-                    </svg>
-                </button>
-                <button id="save-btn" class="hidden" title="保存">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-                    </svg>
-                </button>
-                <input type="file" id="image-upload" accept="image/*" class="hidden">
-            </div>
-
             <div id="touch-indicator"></div>
+        </div>
+        
+        <div id="control-area">
+            <button id="mode-toggle-btn" title="写真編集モード">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/>
+                </svg>
+            </button>
+            <button id="camera-switch-btn" title="カメラ切り替え">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+                </svg>
+            </button>
+            <button id="shutter-btn" title="シャッター">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 2a10 10 0 0 0-9 14.5A10 10 0 0 0 12 22a10 10 0 0 0 9-14.5A10 10 0 0 0 12 2z" opacity=".2"/>
+                </svg>
+            </button>
+            <button id="save-btn" class="hidden" title="保存">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+            </button>
+            <input type="file" id="image-upload" accept="image/*" class="hidden">
         </div>
     </div>
     <script src="main.js"></script>
