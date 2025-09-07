@@ -39,126 +39,61 @@ document.addEventListener('DOMContentLoaded', () => {
             v_texCoord = a_position.xy * 0.5 + 0.5;
         }
     `;
+
+    // 4つのフィルターを統合したフラグメントシェーダー
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
-        uniform float u_brightness;
-        uniform float u_temp;
-        uniform float u_contrast;
-        uniform float u_saturation;
-        uniform float u_fade;
-        uniform float u_hue_shift;
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform vec2 u_touch_pos;
         varying vec2 v_texCoord;
-        
-        vec3 rgb2hsl(vec3 color) {
-            float H = 0.0, S = 0.0, L = 0.0;
-            float Cmin = min(min(color.r, color.g), color.b);
-            float Cmax = max(max(color.r, color.g), color.b);
-            float delta = Cmax - Cmin;
-        
-            L = (Cmax + Cmin) / 2.0;
-        
-            if (delta == 0.0) {
-                H = 0.0;
-                S = 0.0;
-            } else {
-                if (L < 0.5) S = delta / (Cmax + Cmin);
-                else S = delta / (2.0 - Cmax - Cmin);
-        
-                float delta_R = (((Cmax - color.r) / 6.0) + (delta / 2.0)) / delta;
-                float delta_G = (((Cmax - color.g) / 6.0) + (delta / 2.0)) / delta;
-                float delta_B = (((Cmax - color.b) / 6.0) + (delta / 2.0)) / delta;
-        
-                if (color.r == Cmax) H = delta_B - delta_G;
-                else if (color.g == Cmax) H = (1.0 / 3.0) + delta_R - delta_B;
-                else if (color.b == Cmax) H = (2.0 / 3.0) + delta_G - delta_R;
-        
-                if (H < 0.0) H += 1.0;
-                if (H > 1.0) H -= 1.0;
-            }
-            return vec3(H, S, L);
-        }
-        
-        float hue2rgb(float p, float q, float t) {
-            if (t < 0.0) t += 1.0;
-            if (t > 1.0) t -= 1.0;
-            if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
-            if (t < 1.0/2.0) return q;
-            if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
-            return p;
-        }
-        
-        vec3 hsl2rgb(vec3 hsl) {
-            float H = hsl.x, S = hsl.y, L = hsl.z;
-            float R, G, B;
-        
-            if (S == 0.0) {
-                R = L;
-                G = L;
-                B = L;
-            } else {
-                float Q = (L < 0.5) ? (L * (1.0 + S)) : (L + S - L * S);
-                float P = 2.0 * L - Q;
-                R = hue2rgb(P, Q, H + 1.0/3.0);
-                G = hue2rgb(P, Q, H);
-                B = hue2rgb(P, Q, H - 1.0/3.0);
-            }
-            return vec3(R, G, B);
-        }
-        
-        // フィルムグレインのシミュレーション
-        float rand(vec2 co) {
-            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+
+        // ランダムな値を生成する関数
+        float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
         }
 
         void main() {
-            vec4 original_color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
-            vec4 final_color = original_color;
-            
-            // フィルムライクなフェードとコントラスト
-            // u_fadeはセンターからの距離で制御される
-            final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
-            final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
+            vec2 st = gl_FragCoord.xy / u_resolution.xy;
+            vec4 color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
 
-            // 輝度調整（上方向: 太陽 - 明るくきらきらと）
-            float brightness_factor = u_brightness * 1.5;
-            final_color.rgb = final_color.rgb * (1.0 + brightness_factor);
-            // きらめき感を出すためにコントラストを調整
-            final_color.rgb = pow(final_color.rgb, vec3(1.0 + brightness_factor * 0.3));
-            
-            // 色温度調整（右方向: 焚火 - 黄色すぎない温かさ）
-            vec3 color_temp_matrix = vec3(1.0);
-            if (u_temp > 0.0) {
-                // 黄色成分を抑えて赤みを強調
-                color_temp_matrix = vec3(1.0 + u_temp * 0.4, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.3);
+            // タッチ座標に応じてフィルターを適用
+            if (u_touch_pos.y > 0.5) {
+                // 上: レトロフィルム（グレイン＆ノイズ）
+                vec3 noise = vec3(random(st + u_time), random(st * 2.0 - u_time), random(st + 5.0 * u_time));
+                color.rgb += noise * 0.1;
+                color.rgb *= vec3(1.1, 1.05, 0.9);
+                vec2 uv = st - 0.5;
+                float vignette = smoothstep(0.8, 0.2, dot(uv, uv) * 2.0);
+                color.rgb *= vignette;
+            } else if (u_touch_pos.x > 0.5) {
+                // 右: セピアトーン
+                float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                vec3 sepia = vec3(gray * 1.2, gray * 1.0, gray * 0.8);
+                color.rgb = sepia;
+            } else if (u_touch_pos.y < 0.5) {
+                // 下: ブルーム＆グロー
+                float brightness = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+                vec3 bloom = vec3(0.0);
+                if (brightness > 0.8) {
+                    bloom = (color.rgb - 0.8) * 1.5;
+                }
+                color.rgb += bloom;
             } else {
-                // 青色成分を抑えてクールな白さを強調
-                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.4);
+                // 左: カラーシフト
+                vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.005, cos(u_time * 0.1) * 0.005));
+                vec4 green = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
+                vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.005, sin(u_time * 0.1) * 0.005));
+                color.rgb = vec3(red.r, green.g, blue.b);
             }
-            final_color.rgb *= color_temp_matrix;
-            
-            // コントラストと彩度調整（下方向: 月 - つやのある闇）
-            float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-            // コントラストを強調し、輝度を落とす
-            float darkness_factor = u_contrast * 0.7;
-            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + darkness_factor) + 0.5 - darkness_factor * 0.2;
-            // 彩度調整
-            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
-            // 色相調整（左方向: 雪の結晶）
-            if (abs(u_hue_shift) > 0.001) {
-                vec3 hsl = rgb2hsl(final_color.rgb);
-                hsl.x += u_hue_shift * 0.05;
-                hsl.x = mod(hsl.x, 1.0);
-                final_color.rgb = hsl2rgb(hsl);
-            }
-            
-            gl_FragColor = final_color;
+            gl_FragColor = color;
         }
     `;
 
     // WebGL初期化関数
-    function initWebGL(context) {
+    function initWebGL(context, vsSource, fsSource) {
         const vertexShader = createShader(context, context.VERTEX_SHADER, vsSource);
         const fragmentShader = createShader(context, context.FRAGMENT_SHADER, fsSource);
         const program = context.createProgram();
@@ -259,28 +194,16 @@ document.addEventListener('DOMContentLoaded', () => {
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
-    function render() {
+    function render(time) {
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        let brightness = 0.0;
-        let temp = 0.0;
-        let contrast = 0.0;
-        let saturation = 0.0;
-        let fade = 0.0;
-        let hue_shift = 0.0;
+        gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), gl.canvas.width, gl.canvas.height);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_time'), time * 0.001);
         
-        const brightnessLocation = gl.getUniformLocation(program, 'u_brightness');
-        const tempLocation = gl.getUniformLocation(program, 'u_temp');
-        const contrastLocation = gl.getUniformLocation(program, 'u_contrast');
-        const saturationLocation = gl.getUniformLocation(program, 'u_saturation');
-        const fadeLocation = gl.getUniformLocation(program, 'u_fade');
-        const hueShiftLocation = gl.getUniformLocation(program, 'u_hue_shift');
-        
-        // プレビュー画面のアスペクト比維持はCSSに任せるため、WebGLのクロップは行わない
-        const cropRectLocation = gl.getUniformLocation(program, 'u_crop_rect');
-        if (cropRectLocation) { // シェーダーにu_crop_rectがある場合のみ
-            gl.uniform4f(cropRectLocation, 0.0, 0.0, 1.0, 1.0);
+        const touchPosLocation = gl.getUniformLocation(program, 'u_touch_pos');
+        if (touchPosLocation) {
+            gl.uniform2f(touchPosLocation, lastProcessedPos ? lastProcessedPos.x : -1.0, lastProcessedPos ? lastProcessedPos.y : -1.0);
         }
 
         if (!isCameraMode && originalImage) {
@@ -288,35 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, originalImage);
         }
         
-        if (lastProcessedPos) {
-            // 長方形内の正規化された座標からフィルター値を計算
-            const normalizedX = lastProcessedPos.x;
-            const normalizedY = lastProcessedPos.y;
-
-            brightness = -(normalizedY - 0.5) * 2.0; // Y軸は上方向が明るさ
-            temp = (normalizedX - 0.5) * 2.0; // X軸は色温度
-            
-            const distFromCenter = Math.sqrt(
-                Math.pow(normalizedX - 0.5, 2) + 
-                Math.pow(normalizedY - 0.5, 2)
-            ) * 2.0;
-            const clampedDistFromCenter = Math.min(distFromCenter, 1.0); 
-
-            contrast = clampedDistFromCenter;
-            saturation = clampedDistFromCenter;
-            fade = clampedDistFromCenter * 0.5;
-            hue_shift = (normalizedX - 0.5) * 2.0;
-        }
-
-        gl.uniform1f(brightnessLocation, brightness);
-        gl.uniform1f(tempLocation, temp);
-        gl.uniform1f(contrastLocation, contrast);
-        gl.uniform1f(saturationLocation, saturation);
-        gl.uniform1f(fadeLocation, fade);
-        gl.uniform1f(hueShiftLocation, hue_shift);
-
-        updateFilterIcons(brightness, temp, contrast, saturation, fade, hue_shift);
-
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         
         if (isCapturing) {
@@ -341,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const offscreenProgram = initWebGL(offscreenGl);
+        const offscreenProgram = initWebGL(offscreenGl, vsSource, fsSource);
         offscreenGl.useProgram(offscreenProgram);
 
         const offscreenTexture = offscreenGl.createTexture();
@@ -351,27 +245,11 @@ document.addEventListener('DOMContentLoaded', () => {
         offscreenGl.texParameteri(offscreenGl.TEXTURE_2D, offscreenGl.TEXTURE_MIN_FILTER, offscreenGl.LINEAR);
         offscreenGl.texImage2D(offscreenGl.TEXTURE_2D, 0, offscreenGl.RGBA, offscreenGl.RGBA, offscreenGl.UNSIGNED_BYTE, source);
 
-        // プレビューのフィルター値を再適用
-        let brightness = 0, temp = 0, contrast = 0, saturation = 0, fade = 0, hue_shift = 0;
-        if (lastProcessedPos) {
-            const normalizedX = lastProcessedPos.x;
-            const normalizedY = lastProcessedPos.y;
-            brightness = -(normalizedY - 0.5) * 2.0;
-            temp = (normalizedX - 0.5) * 2.0;
-            const distFromCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2)) * 2.0;
-            const clampedDistFromCenter = Math.min(distFromCenter, 1.0);
-            contrast = clampedDistFromCenter;
-            saturation = clampedDistFromCenter;
-            fade = clampedDistFromCenter * 0.5;
-            hue_shift = (normalizedX - 0.5) * 2.0;
+        offscreenGl.uniform2f(offscreenGl.getUniformLocation(offscreenProgram, 'u_resolution'), offscreenCanvas.width, offscreenCanvas.height);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_time'), 0);
+        if (offscreenGl.getUniformLocation(offscreenProgram, 'u_touch_pos')) {
+            offscreenGl.uniform2f(offscreenGl.getUniformLocation(offscreenProgram, 'u_touch_pos'), lastProcessedPos ? lastProcessedPos.x : -1.0, lastProcessedPos ? lastProcessedPos.y : -1.0);
         }
-
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_brightness'), brightness);
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_temp'), temp);
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_contrast'), contrast);
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_saturation'), saturation);
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_fade'), fade);
-        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_hue_shift'), hue_shift);
         
         offscreenGl.drawArrays(offscreenGl.TRIANGLES, 0, 6);
 
@@ -425,19 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
             x: (clampedX - rectLeft) / rectWidth, 
             y: (clampedY - rectTop) / rectHeight 
         };
-
-        if (navigator.vibrate) {
-            const distFromCenter = Math.sqrt(
-                Math.pow(lastProcessedPos.x - 0.5, 2) + 
-                Math.pow(lastProcessedPos.y - 0.5, 2)
-            );
-            const normalizedDist = Math.min(distFromCenter * 2.0, 1.0);
-            if (normalizedDist > 0.95) {
-                navigator.vibrate(20);
-            } else if (normalizedDist < 0.05) {
-                navigator.vibrate(10);
-            }
-        }
     }
 
     function handleEnd() {
@@ -458,13 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_fade'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_hue_shift'), 0.0);
-        updateFilterIcons(0, 0, 0, 0, 0, 0);
+        gl.uniform2f(gl.getUniformLocation(program, 'u_touch_pos'), -1.0, -1.0);
     });
     window.dispatchEvent(new Event('resize'));
 
@@ -485,13 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
         }
         lastProcessedPos = null;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_fade'), 0.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_hue_shift'), 0.0);
-        updateFilterIcons(0, 0, 0, 0, 0, 0);
+        gl.uniform2f(gl.getUniformLocation(program, 'u_touch_pos'), -1.0, -1.0);
     }
 
     // イベントリスナー
@@ -544,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 初期化と描画ループの開始
-    program = initWebGL(gl);
+    program = initWebGL(gl, vsSource, fsSource);
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
