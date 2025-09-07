@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
 
-    // 4つのフィルターを統合したフラグメントシェーダー
+    // 4つのフィルターを統合し、グラデーションを適用するフラグメントシェーダー
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
@@ -54,41 +54,68 @@ document.addEventListener('DOMContentLoaded', () => {
             return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
         }
 
+        // タッチ位置から各フィルターの適用度を計算する関数
+        vec4 calculateWeights(vec2 touchPos) {
+            vec2 center = vec2(0.5, 0.5);
+            vec2 normalizedPos = touchPos - center;
+            float topWeight = smoothstep(0.0, 1.0, normalizedPos.y + 0.5);
+            float bottomWeight = smoothstep(0.0, 1.0, 0.5 - normalizedPos.y);
+            float rightWeight = smoothstep(0.0, 1.0, normalizedPos.x + 0.5);
+            float leftWeight = smoothstep(0.0, 1.0, 0.5 - normalizedPos.x);
+
+            float totalWeight = topWeight + bottomWeight + rightWeight + leftWeight;
+            return vec4(topWeight, rightWeight, bottomWeight, leftWeight) / totalWeight;
+        }
+
         void main() {
             vec2 st = gl_FragCoord.xy / u_resolution.xy;
-            vec4 color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
+            vec4 baseColor = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
 
-            // タッチ座標に応じてフィルターを適用
-            if (u_touch_pos.y > 0.5) {
-                // 上: レトロフィルム（グレイン＆ノイズ）
-                vec3 noise = vec3(random(st + u_time), random(st * 2.0 - u_time), random(st + 5.0 * u_time));
-                color.rgb += noise * 0.1;
-                color.rgb *= vec3(1.1, 1.05, 0.9);
-                vec2 uv = st - 0.5;
-                float vignette = smoothstep(0.8, 0.2, dot(uv, uv) * 2.0);
-                color.rgb *= vignette;
-            } else if (u_touch_pos.x > 0.5) {
-                // 右: セピアトーン
-                float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                vec3 sepia = vec3(gray * 1.2, gray * 1.0, gray * 0.8);
-                color.rgb = sepia;
-            } else if (u_touch_pos.y < 0.5) {
-                // 下: ブルーム＆グロー
-                float brightness = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-                vec3 bloom = vec3(0.0);
-                if (brightness > 0.8) {
-                    bloom = (color.rgb - 0.8) * 1.5;
-                }
-                color.rgb += bloom;
-            } else {
-                // 左: カラーシフト
-                vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.005, cos(u_time * 0.1) * 0.005));
-                vec4 green = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
-                vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.005, sin(u_time * 0.1) * 0.005));
-                color.rgb = vec3(red.r, green.g, blue.b);
+            // タッチされていない場合はフィルターを適用しない
+            if (u_touch_pos.x < 0.0) {
+                gl_FragColor = baseColor;
+                return;
             }
 
-            gl_FragColor = color;
+            // 各フィルターの適用度を計算
+            vec4 weights = calculateWeights(u_touch_pos);
+
+            // フィルターを個別に適用した色を計算
+            vec4 filteredColorTop = baseColor;
+            vec3 noise = vec3(random(st + u_time), random(st * 2.0 - u_time), random(st + 5.0 * u_time));
+            filteredColorTop.rgb += noise * 0.2 * weights.x; // レトロフィルム（グレイン＆ノイズ）
+            filteredColorTop.rgb *= mix(vec3(1.0), vec3(1.1, 1.05, 0.9), weights.x);
+            vec2 uv = st - 0.5;
+            float vignette = smoothstep(0.8, 0.2, dot(uv, uv) * 2.0);
+            filteredColorTop.rgb *= mix(vec3(1.0), vec3(vignette), weights.x);
+
+            vec4 filteredColorRight = baseColor;
+            float grayRight = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 sepia = vec3(grayRight * 1.2, grayRight * 1.0, grayRight * 0.8);
+            filteredColorRight.rgb = mix(baseColor.rgb, sepia, weights.y); // セピアトーン
+
+            vec4 filteredColorBottom = baseColor;
+            float brightness = dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+            vec3 bloom = vec3(0.0);
+            if (brightness > 0.8) {
+                bloom = (baseColor.rgb - 0.8) * 1.5;
+            }
+            filteredColorBottom.rgb = mix(baseColor.rgb, baseColor.rgb + bloom * 1.5, weights.z); // ブルーム＆グロー
+
+            vec4 filteredColorLeft = baseColor;
+            vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.01 * weights.w, cos(u_time * 0.1) * 0.01 * weights.w));
+            vec4 green = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
+            vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.01 * weights.w, sin(u_time * 0.1) * 0.01 * weights.w));
+            filteredColorLeft.rgb = vec3(red.r, green.g, blue.b); // カラーシフト
+
+            // 各フィルターの色を重みに応じてブレンド
+            vec4 finalColor = 
+                filteredColorTop * weights.x +
+                filteredColorRight * weights.y +
+                filteredColorBottom * weights.z +
+                filteredColorLeft * weights.w;
+
+            gl_FragColor = finalColor;
         }
     `;
 
