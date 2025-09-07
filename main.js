@@ -13,11 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
-    // 新規追加
-    const brightnessValue = document.getElementById('brightness-value');
-    const tempValue = document.getElementById('temp-value');
-    const contrastValue = document.getElementById('contrast-value');
-    const hueValue = document.getElementById('hue-value');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
@@ -142,15 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             final_color.rgb *= color_temp_matrix;
             
-            // コントラスト調整（下方向: 月 - つやのある闇）
-            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.5) + 0.5;
+            // コントラストと彩度調整（下方向: 月 - つやのある闇）
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-            // 彩度調整
-            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
-
-            // 下方向（月）の「つやのある闇」を表現するために、コントラストを強調し、輝度を落とす
+            // コントラストを強調し、輝度を落とす
             float darkness_factor = u_contrast * 0.7;
             final_color.rgb = (final_color.rgb - 0.5) * (1.0 + darkness_factor) + 0.5 - darkness_factor * 0.2;
+            // 彩度調整
+            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
             // 色相調整（左方向: 雪の結晶）
             if (abs(u_hue_shift) > 0.001) {
@@ -203,12 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderVideoFrame() {
         if (!isCameraMode || !video.srcObject) return;
         try {
-            // テクスチャ更新をrequestVideoFrameCallbackのコールバック内で行うことで描画のラグを軽減
+            await video.play();
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-            
-            // 次のフレームを要求
-            video.requestVideoFrameCallback(renderVideoFrame);
         } catch (e) {
             console.error("video.play()に失敗しました:", e);
             if (isCameraMode) {
@@ -216,8 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await startCamera();
             }
         }
+        video.requestVideoFrameCallback(renderVideoFrame);
     }
-    
+
     // カメラ起動ロジック
     async function startCamera() {
         if (video.srcObject) {
@@ -254,22 +245,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = getCSSVar('--bright-color');
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
-        brightnessValue.textContent = (brightness * 100).toFixed(0);
 
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
         filterIconBottom.style.color = getCSSVar('--saturation-color');
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
-        contrastValue.textContent = (contrast * 100).toFixed(0);
         
         const hueShiftIntensity = Math.abs(hue_shift);
         filterIconLeft.style.color = getCSSVar('--hue-color');
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
-        hueValue.textContent = (hue_shift * 100).toFixed(0);
 
         const tempIntensity = Math.abs(temp);
         filterIconRight.style.color = getCSSVar('--warm-color');
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
-        tempValue.textContent = (temp * 100).toFixed(0);
     }
 
     function render() {
@@ -398,8 +385,172 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
-    let valueDisplayTimeout;
 
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
         if (targetTagName === 'button' || targetTagName === 'svg' || targetTagName === 'path') {
+            return;
+        }
+        e.preventDefault();
+        isTouching = true;
+        handleMove(e);
+    }
+    
+    function handleMove(e) {
+        if (!isTouching) return;
+
+        let x, y;
+        if (e.touches) {
+            x = e.touches[0].clientX;
+            y = e.touches[0].clientY;
+        } else {
+            x = e.clientX;
+            y = e.clientY;
+        }
+
+        const rect = filterRectangle.getBoundingClientRect();
+        const rectLeft = rect.left;
+        const rectTop = rect.top;
+        const rectWidth = rect.width;
+        const rectHeight = rect.height;
+
+        let clampedX = Math.max(rectLeft, Math.min(x, rectLeft + rectWidth));
+        let clampedY = Math.max(rectTop, Math.min(y, rectTop + rectHeight));
+        
+        touchIndicator.style.left = `${clampedX}px`;
+        touchIndicator.style.top = `${clampedY}px`;
+        touchIndicator.style.opacity = 1;
+        
+        lastProcessedPos = { 
+            x: (clampedX - rectLeft) / rectWidth, 
+            y: (clampedY - rectTop) / rectHeight 
+        };
+
+        if (navigator.vibrate) {
+            const distFromCenter = Math.sqrt(
+                Math.pow(lastProcessedPos.x - 0.5, 2) + 
+                Math.pow(lastProcessedPos.y - 0.5, 2)
+            );
+            const normalizedDist = Math.min(distFromCenter * 2.0, 1.0);
+            if (normalizedDist > 0.95) {
+                navigator.vibrate(20);
+            } else if (normalizedDist < 0.05) {
+                navigator.vibrate(10);
+            }
+        }
+    }
+
+    function handleEnd() {
+        isTouching = false;
+        touchIndicator.style.opacity = 0;
+    }
+    
+    filterRectangle.addEventListener('mousedown', handleStart);
+    filterRectangle.addEventListener('mousemove', handleMove);
+    filterRectangle.addEventListener('mouseup', handleEnd);
+    filterRectangle.addEventListener('mouseleave', handleEnd);
+    filterRectangle.addEventListener('touchstart', handleStart, { passive: false });
+    filterRectangle.addEventListener('touchmove', handleMove, { passive: false });
+    filterRectangle.addEventListener('touchend', handleEnd);
+
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        lastProcessedPos = null;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_fade'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_hue_shift'), 0.0);
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    function updateModeUI() {
+        if (isCameraMode) {
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
+            modeToggleBtn.setAttribute('title', '写真編集モード');
+            shutterBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
+            cameraSwitchBtn.classList.remove('hidden');
+            imageUpload.classList.add('hidden');
+        } else {
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+            modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
+            shutterBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
+            cameraSwitchBtn.classList.add('hidden');
+            imageUpload.classList.remove('hidden');
+        }
+        lastProcessedPos = null;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_fade'), 0.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_hue_shift'), 0.0);
+        updateFilterIcons(0, 0, 0, 0, 0, 0);
+    }
+
+    // イベントリスナー
+    modeToggleBtn.addEventListener('click', () => {
+        isCameraMode = !isCameraMode;
+        if (isCameraMode) {
+            startCamera();
+        } else {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            imageUpload.click();
+        }
+    });
+    
+    cameraSwitchBtn.addEventListener('click', () => {
+        currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+        startCamera();
+    });
+
+    imageUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            isCameraMode = true;
+            startCamera();
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                originalImage = img;
+                updateModeUI();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    shutterBtn.addEventListener('click', () => {
+        if (isCameraMode) {
+            isCapturing = true;
+        }
+    });
+    
+    saveBtn.addEventListener('click', () => {
+        if (!isCameraMode && originalImage) {
+            isCapturing = true;
+        }
+    });
+
+    // 初期化と描画ループの開始
+    program = initWebGL(gl);
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+    requestAnimationFrame(render);
+    startCamera();
+});
