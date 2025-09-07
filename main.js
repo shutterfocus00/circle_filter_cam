@@ -105,29 +105,49 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return vec3(R, G, B);
         }
+        
+        // フィルムグレインのシミュレーション
+        float rand(vec2 co) {
+            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
 
         void main() {
             vec4 original_color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
             vec4 final_color = original_color;
-
+            
+            // フィルムライクなフェードとコントラスト
+            // u_fadeはセンターからの距離で制御される
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
             final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
 
-            float exposure = u_brightness * 2.0;
-            final_color.rgb *= pow(2.0, exposure);
+            // 輝度調整（上方向: 太陽 - 明るくきらきらと）
+            float brightness_factor = u_brightness * 1.5;
+            final_color.rgb = final_color.rgb * (1.0 + brightness_factor);
+            // きらめき感を出すためにコントラストを調整
+            final_color.rgb = pow(final_color.rgb, vec3(1.0 + brightness_factor * 0.3));
             
+            // 色温度調整（右方向: 焚火 - 黄色すぎない温かさ）
             vec3 color_temp_matrix = vec3(1.0);
             if (u_temp > 0.0) {
-                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.2);
+                // 黄色成分を抑えて赤みを強調
+                color_temp_matrix = vec3(1.0 + u_temp * 0.4, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.3);
             } else {
-                color_temp_matrix = vec3(1.0 + u_temp * 0.2, 1.0 + u_temp * 0.05, 1.0 - u_temp * 0.3);
+                // 青色成分を抑えてクールな白さを強調
+                color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.4);
             }
             final_color.rgb *= color_temp_matrix;
-
-            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.8) + 0.5;
+            
+            // コントラスト調整（下方向: 月 - つやのある闇）
+            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + u_contrast * 0.5) + 0.5;
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
+            // 彩度調整
             final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
+            // 下方向（月）の「つやのある闇」を表現するために、コントラストを強調し、輝度を落とす
+            float darkness_factor = u_contrast * 0.7;
+            final_color.rgb = (final_color.rgb - 0.5) * (1.0 + darkness_factor) + 0.5 - darkness_factor * 0.2;
+
+            // 色相調整（左方向: 雪の結晶）
             if (abs(u_hue_shift) > 0.001) {
                 vec3 hsl = rgb2hsl(final_color.rgb);
                 hsl.x += u_hue_shift * 0.05;
