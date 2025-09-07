@@ -14,12 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
 
-    // 新規追加
-    const brightnessValue = document.getElementById('brightness-value');
-    const tempValue = document.getElementById('temp-value');
-    const contrastValue = document.getElementById('contrast-value');
-    const hueValue = document.getElementById('hue-value');
-
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
     if (!gl) {
@@ -112,35 +106,44 @@ document.addEventListener('DOMContentLoaded', () => {
             return vec3(R, G, B);
         }
         
+        // フィルムグレインのシミュレーション
+        float rand(vec2 co) {
+            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
         void main() {
             vec4 original_color = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
             vec4 final_color = original_color;
             
-            // フィルムライクなフェード
+            // フィルムライクなフェードとコントラスト
+            // u_fadeはセンターからの距離で制御される
             final_color.rgb = mix(final_color.rgb, vec3(dot(final_color.rgb, vec3(0.299, 0.587, 0.114))), u_fade * 0.4);
             final_color.rgb = mix(final_color.rgb, vec3(1.0), u_fade * 0.2);
 
             // 輝度調整（上方向: 太陽 - 明るくきらきらと）
             float brightness_factor = u_brightness * 1.5;
             final_color.rgb = final_color.rgb * (1.0 + brightness_factor);
+            // きらめき感を出すためにコントラストを調整
             final_color.rgb = pow(final_color.rgb, vec3(1.0 + brightness_factor * 0.3));
             
             // 色温度調整（右方向: 焚火 - 黄色すぎない温かさ）
             vec3 color_temp_matrix = vec3(1.0);
             if (u_temp > 0.0) {
+                // 黄色成分を抑えて赤みを強調
                 color_temp_matrix = vec3(1.0 + u_temp * 0.4, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.3);
             } else {
+                // 青色成分を抑えてクールな白さを強調
                 color_temp_matrix = vec3(1.0 + u_temp * 0.3, 1.0 + u_temp * 0.1, 1.0 - u_temp * 0.4);
             }
             final_color.rgb *= color_temp_matrix;
             
             // コントラストと彩度調整（下方向: 月 - つやのある闇）
             float luma = dot(final_color.rgb, vec3(0.299, 0.587, 0.114));
-            // 彩度調整 (修正箇所)
-            final_color.rgb = mix(vec3(luma), final_color.rgb, clamp(1.0 + u_saturation * 0.5, 0.0, 2.0));
             // コントラストを強調し、輝度を落とす
             float darkness_factor = u_contrast * 0.7;
             final_color.rgb = (final_color.rgb - 0.5) * (1.0 + darkness_factor) + 0.5 - darkness_factor * 0.2;
+            // 彩度調整
+            final_color.rgb = mix(vec3(luma), final_color.rgb, 1.0 + u_saturation * 0.5);
 
             // 色相調整（左方向: 雪の結晶）
             if (abs(u_hue_shift) > 0.001) {
@@ -242,22 +245,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const brightnessIntensity = Math.abs(brightness);
         filterIconTop.style.color = getCSSVar('--bright-color');
         filterIconTop.style.transform = `translateX(-50%) scale(${1.0 + brightnessIntensity * 0.2})`;
-        brightnessValue.textContent = (brightness * 100).toFixed(0);
 
         const bottomIntensity = Math.max(Math.abs(contrast), Math.abs(saturation), Math.abs(fade));
         filterIconBottom.style.color = getCSSVar('--saturation-color');
         filterIconBottom.style.transform = `translateX(-50%) scale(${1.0 + bottomIntensity * 0.2})`;
-        contrastValue.textContent = (contrast * 100).toFixed(0);
         
         const hueShiftIntensity = Math.abs(hue_shift);
         filterIconLeft.style.color = getCSSVar('--hue-color');
         filterIconLeft.style.transform = `translateY(-50%) scale(${1.0 + hueShiftIntensity * 0.2})`;
-        hueValue.textContent = (hue_shift * 100).toFixed(0);
 
         const tempIntensity = Math.abs(temp);
         filterIconRight.style.color = getCSSVar('--warm-color');
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
-        tempValue.textContent = (temp * 100).toFixed(0);
     }
 
     function render() {
@@ -386,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isTouching = false;
-    let valueDisplayTimeout;
 
     function handleStart(e) {
         const targetTagName = e.target.tagName.toLowerCase();
@@ -395,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         e.preventDefault();
         isTouching = true;
-        showValueDisplays();
         handleMove(e);
     }
     
@@ -446,24 +443,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        clearTimeout(valueDisplayTimeout);
-        valueDisplayTimeout = setTimeout(hideValueDisplays, 1000);
     }
-
-    function showValueDisplays() {
-        brightnessValue.style.opacity = 1;
-        tempValue.style.opacity = 1;
-        contrastValue.style.opacity = 1;
-        hueValue.style.opacity = 1;
-    }
-
-    function hideValueDisplays() {
-        brightnessValue.style.opacity = 0;
-        tempValue.style.opacity = 0;
-        contrastValue.style.opacity = 0;
-        hueValue.style.opacity = 0;
-    }
-
+    
     filterRectangle.addEventListener('mousedown', handleStart);
     filterRectangle.addEventListener('mousemove', handleMove);
     filterRectangle.addEventListener('mouseup', handleEnd);
@@ -488,26 +469,21 @@ document.addEventListener('DOMContentLoaded', () => {
     window.dispatchEvent(new Event('resize'));
 
     function updateModeUI() {
-        document.getElementById('app-container').classList.add('mode-transition');
-        setTimeout(() => {
-            if (isCameraMode) {
-                modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
-                modeToggleBtn.setAttribute('title', '写真編集モード');
-                shutterBtn.classList.remove('hidden');
-                saveBtn.classList.add('hidden');
-                cameraSwitchBtn.classList.remove('hidden');
-                imageUpload.classList.add('hidden');
-            } else {
-                modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-                modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
-                shutterBtn.classList.add('hidden');
-                saveBtn.classList.remove('hidden');
-                cameraSwitchBtn.classList.add('hidden');
-                imageUpload.classList.remove('hidden');
-            }
-            document.getElementById('app-container').classList.remove('mode-transition');
-        }, 250);
-        
+        if (isCameraMode) {
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
+            modeToggleBtn.setAttribute('title', '写真編集モード');
+            shutterBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
+            cameraSwitchBtn.classList.remove('hidden');
+            imageUpload.classList.add('hidden');
+        } else {
+            modeToggleBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+            modeToggleBtn.setAttribute('title', 'リアルタイム撮影モード');
+            shutterBtn.classList.add('hidden');
+            saveBtn.classList.remove('hidden');
+            cameraSwitchBtn.classList.add('hidden');
+            imageUpload.classList.remove('hidden');
+        }
         lastProcessedPos = null;
         gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), 0.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temp'), 0.0);
