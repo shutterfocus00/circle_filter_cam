@@ -6,7 +6,7 @@
     --accent-color: #5d5dff;
     --bright-color: #fff;
     --warm-color: #ff9900;
-    --saturation-color: #ff00ff;
+    --saturation-color: #00ff00;
     --hue-color: #0088ff;
 }
 
@@ -45,25 +45,16 @@ html, body {
     justify-content: center;
     align-items: center;
     overflow: hidden;
-    touch-action: none;
+    background-color: #000; /* プレビューエリア外の背景色 */
 }
 
-#gl-canvas {
+/* キャンバスとビデオをプレビューエリアの中央に配置 */
+#gl-canvas, #video-feed {
+    position: relative;
     width: 100%;
     height: 100%;
-    display: block;
-}
-
-#video-feed {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    transform: scaleX(-1); /* フロントカメラ時の反転 */
-}
-
-#video-feed.hidden {
-    display: none;
+    object-fit: contain; /* アスペクト比を維持し、全体を表示 */
+    z-index: 1;
 }
 
 /* フィルター操作領域 - flex-growを3に設定 */
@@ -82,44 +73,32 @@ html, body {
 #filter-rectangle {
     width: 100%;
     height: 100%;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
     position: relative;
     touch-action: none;
-    cursor: grab;
-    transition: transform 0.2s ease-in-out;
 }
 
-#filter-rectangle:active {
-    cursor: grabbing;
-}
-
-.filter-icon {
+#filter-icon-top,
+#filter-icon-bottom,
+#filter-icon-left,
+#filter-icon-right {
     position: absolute;
-    font-size: 2.5em;
-    transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 40px;
-    height: 40px;
-    pointer-events: none;
-}
-
-.filter-icon svg {
-    width: 100%;
-    height: 100%;
+    font-size: 1.5em;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s ease, color 0.2s ease;
 }
 
 #filter-icon-top {
-    left: 50%;
     top: 5px;
+    left: 50%;
     transform: translateX(-50%);
 }
 
 #filter-icon-bottom {
-    left: 50%;
     bottom: 5px;
+    left: 50%;
     transform: translateX(-50%);
 }
 
@@ -135,43 +114,21 @@ html, body {
     transform: translateY(-50%);
 }
 
-/* 新規追加: 数値表示のスタイル */
 .param-value {
     position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 0.8em;
     font-weight: bold;
     color: var(--primary-color);
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 5px 8px;
-    border-radius: 5px;
-    pointer-events: none;
-    z-index: 11;
+    text-shadow: 0 0 3px #000;
     opacity: 0;
-    transition: opacity 0.3s ease-in-out;
+    transition: opacity 0.3s ease;
 }
 
-.param-value.top {
-    top: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.param-value.bottom {
-    bottom: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.param-value.left {
-    left: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.param-value.right {
-    right: 5px;
-    top: 50%;
-    transform: translateY(-50%);
+.filter-icon:hover .param-value {
+    opacity: 1;
 }
 
 /* Touch Indicator */
@@ -200,40 +157,55 @@ html, body {
     padding: 0 20px;
     background-color: rgba(0, 0, 0, 0.8);
     z-index: 3;
+    transition: transform 0.3s ease-in-out;
 }
 
 button {
     background: rgba(40, 40, 40, 0.8);
     border: 2px solid var(--primary-color);
     border-radius: 50%;
-    width: 60px;
-    height: 60px;
+    width: 70px;
+    height: 70px;
     display: flex;
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    transition: background 0.2s ease-in-out, transform 0.2s ease-in-out;
+    transition: background 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
 }
 
-button:hover {
-    background: rgba(80, 80, 80, 0.8);
+#shutter-btn, #save-btn {
+    width: 80px;
+    height: 80px;
+    border-width: 4px;
 }
 
 button:active {
     transform: scale(0.95);
+    background: rgba(60, 60, 60, 0.9);
 }
 
-button .icon {
-    width: 24px;
-    height: 24px;
+.icon {
+    width: 30px;
+    height: 30px;
+    stroke: var(--primary-color);
 }
 
-/* カメラモード・編集モード切り替え時のアニメーション */
-#app-container.mode-transition {
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
+#shutter-btn .icon {
+    stroke: none;
+    fill: var(--primary-color);
 }
 
 .hidden {
-    display: none !important;
+    display: none;
+}
+
+/* モード切り替え時のアニメーション */
+.mode-transition {
+    animation: fadeOutIn 0.5s ease-in-out;
+}
+@keyframes fadeOutIn {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
 }
