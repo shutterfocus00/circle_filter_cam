@@ -58,41 +58,54 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float u_weight_left;
         varying vec2 v_texCoord;
 
-        // ランダムな値を生成する関数
-        float random(vec2 st) {
-            return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        // FBMノイズを生成する関数（よりリッチなグレイン用）
+        float fbm(vec2 uv) {
+            float v = 0.0;
+            float a = 0.5;
+            vec2 shift = vec2(0.1234, 0.5678);
+            mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+            
+            for (int i = 0; i < 5; i++) {
+                v += a * sin(dot(uv, vec2(12.9898, 78.233)) * 43758.5453123 + u_time);
+                uv = rot * (uv * 2.0) + shift;
+                a *= 0.5;
+            }
+            return v;
         }
 
         void main() {
             vec2 st = gl_FragCoord.xy / u_resolution.xy;
             vec4 baseColor = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
 
-            // フィルターを個別に適用した色を計算
+            // レトロフィルムフィルター (グレイン & ノイズ)
             vec4 filteredColorTop = baseColor;
-            vec3 noise = vec3(random(st + u_time), random(st * 2.0 - u_time), random(st + 5.0 * u_time));
-            filteredColorTop.rgb += noise * 0.5 * u_weight_top;
-            filteredColorTop.rgb *= mix(vec3(1.0), vec3(1.1, 1.05, 0.9), u_weight_top);
-            vec2 uv = st - 0.5;
+            float grain = fbm(st * 100.0) * 0.2;
+            filteredColorTop.rgb += vec3(grain) * u_weight_top;
+            vec2 uv = v_texCoord - 0.5;
             float vignette = smoothstep(0.8, 0.2, dot(uv, uv) * 2.0);
             filteredColorTop.rgb *= mix(vec3(1.0), vec3(vignette), u_weight_top);
 
+            // セピアトーンフィルター (強めの効果)
             vec4 filteredColorRight = baseColor;
             float grayRight = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
-            vec3 sepia = vec3(grayRight * 1.2, grayRight * 1.0, grayRight * 0.8);
-            filteredColorRight.rgb = mix(baseColor.rgb, sepia, u_weight_right);
+            vec3 sepia = vec3(grayRight * 1.5, grayRight * 1.1, grayRight * 0.9);
+            filteredColorRight.rgb = mix(baseColor.rgb, sepia, u_weight_right * 1.5); // 効果を強める
 
+            // ブルーム & グローフィルター (より特徴的に)
             vec4 filteredColorBottom = baseColor;
             float brightness = dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             vec3 bloom = vec3(0.0);
             if (brightness > 0.8) {
-                bloom = (baseColor.rgb - 0.8) * 1.5;
+                bloom = (baseColor.rgb - 0.8) * 2.0;
             }
-            filteredColorBottom.rgb = mix(baseColor.rgb, baseColor.rgb + bloom * 3.0, u_weight_bottom);
+            filteredColorBottom.rgb = mix(baseColor.rgb, baseColor.rgb + bloom * 5.0, u_weight_bottom);
 
+            // カラーシフトフィルター (クロマチックアベレーション)
             vec4 filteredColorLeft = baseColor;
-            vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.05 * u_weight_left, cos(u_time * 0.1) * 0.05 * u_weight_left));
+            vec2 shift = vec2(sin(u_time * 0.5), cos(u_time * 0.5)) * 0.015 * u_weight_left;
+            vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + shift);
             vec4 green = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
-            vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.05 * u_weight_left, sin(u_time * 0.1) * 0.05 * u_weight_left));
+            vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) - shift);
             filteredColorLeft.rgb = vec3(red.r, green.g, blue.b);
 
             // 各フィルターの色を重みに応じてブレンド
