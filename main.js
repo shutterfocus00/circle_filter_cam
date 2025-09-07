@@ -333,9 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         lastProcessedPos = { x: normalizedX, y: normalizedY };
 
         // 各フィルターの重みを計算
-        const distToCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2));
-        const maxDist = Math.sqrt(0.5 * 0.5 + 0.5 * 0.5);
-
         const retroWeight = Math.max(0, normalizedY - 0.5);
         const sepiaWeight = Math.max(0, normalizedX - 0.5);
         const bloomWeight = Math.max(0, 0.5 - normalizedY);
@@ -365,8 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
-        filterValuesDisplay.style.opacity = 0;
-        weights = { top: 0, right: 0, bottom: 0, left: 0 };
     }
     
     filterRectangle.addEventListener('mousedown', handleStart);
