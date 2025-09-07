@@ -114,6 +114,23 @@ html, body {
     transform: translateY(-50%);
 }
 
+.param-value {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8em;
+    font-weight: bold;
+    color: var(--primary-color);
+    text-shadow: 0 0 3px #000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.filter-icon:hover .param-value {
+    opacity: 1;
+}
+
 /* Touch Indicator */
 #touch-indicator {
     position: absolute;
@@ -140,6 +157,7 @@ html, body {
     padding: 0 20px;
     background-color: rgba(0, 0, 0, 0.8);
     z-index: 3;
+    transition: transform 0.3s ease-in-out;
 }
 
 button {
@@ -180,4 +198,14 @@ button:active {
 
 .hidden {
     display: none;
+}
+
+/* モード切り替え時のアニメーション */
+.mode-transition {
+    animation: fadeOutIn 0.5s ease-in-out;
+}
+@keyframes fadeOutIn {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
 }
