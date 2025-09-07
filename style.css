@@ -41,102 +41,64 @@ html, body {
     position: relative;
     flex: 15; /* 画面全体の15/19を占有 */
     width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     overflow: hidden;
-    background-color: #000; /* プレビューエリア外の背景色 */
 }
 
-/* キャンバスとビデオをプレビューエリアの中央に配置 */
 #gl-canvas, #video-feed {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* 変更後：アスペクト比を維持し、全体を覆うように表示 */
-    z-index: 1;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 100%;
+    min-height: 100%;
+    width: auto;
+    height: auto;
 }
 
-/* フィルター操作領域 - flex-growを3に設定 */
+#gl-canvas {
+    z-index: 2;
+}
+
+.hidden {
+    display: none;
+}
+
+/* フィルター領域 */
 #filter-area {
-    position: relative;
     flex: 3; /* 画面全体の3/19を占有 */
     width: 100%;
-    padding: 10px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 2;
+    background-color: transparent;
+    position: relative;
 }
 
 #filter-rectangle {
     width: 100%;
     height: 100%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 10px;
     position: relative;
     touch-action: none;
 }
 
-#filter-icon-top,
-#filter-icon-bottom,
-#filter-icon-left,
-#filter-icon-right {
+.filter-icon {
     position: absolute;
-    font-size: 1.5em;
-    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    transition: transform 0.2s ease, color 0.2s ease;
-}
-
-#filter-icon-top {
-    top: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-#filter-icon-bottom {
-    bottom: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-#filter-icon-left {
-    left: 5px;
+    width: 30px;
+    height: 30px;
     top: 50%;
-    transform: translateY(-50%);
-}
-
-#filter-icon-right {
-    right: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.param-value {
-    position: absolute;
-    top: 100%;
     left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.8em;
-    font-weight: bold;
-    color: var(--primary-color);
-    text-shadow: 0 0 3px #000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+    transition: transform 0.2s ease-out;
 }
 
-.filter-icon:hover .param-value {
-    opacity: 1;
-}
+#filter-icon-top { top: 10%; }
+#filter-icon-bottom { top: 90%; }
+#filter-icon-left { left: 10%; }
+#filter-icon-right { left: 90%; }
 
-/* Touch Indicator */
 #touch-indicator {
     position: absolute;
-    width: 40px;
-    height: 40px;
-    background: white;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     border: 2px solid var(--accent-color);
     box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
@@ -145,6 +107,25 @@ html, body {
     opacity: 0;
     z-index: 10;
     transform: translate(-50%, -50%);
+}
+
+#filter-values-display {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 14px;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+#filter-values-display p {
+    margin: 0;
+    line-height: 1.5;
 }
 
 /* 撮影・コントロール領域 - flex-growを1に設定 */
@@ -171,41 +152,19 @@ button {
     align-items: center;
     cursor: pointer;
     transition: background 0.2s, transform 0.2s;
-    -webkit-tap-highlight-color: transparent;
 }
 
-#shutter-btn, #save-btn {
-    width: 80px;
-    height: 80px;
-    border-width: 4px;
+button:hover {
+    background: rgba(60, 60, 60, 0.9);
 }
 
 button:active {
     transform: scale(0.95);
-    background: rgba(60, 60, 60, 0.9);
 }
 
 .icon {
-    width: 30px;
-    height: 30px;
+    width: 35px;
+    height: 35px;
     stroke: var(--primary-color);
-}
-
-#shutter-btn .icon {
-    stroke: none;
-    fill: var(--primary-color);
-}
-
-.hidden {
-    display: none;
-}
-
-/* モード切り替え時のアニメーション */
-.mode-transition {
-    animation: fadeOutIn 0.5s ease-in-out;
-}
-@keyframes fadeOutIn {
-    0% { opacity: 1; }
-    50% { opacity: 0; }
-    100% { opacity: 1; }
+    stroke-width: 2;
 }

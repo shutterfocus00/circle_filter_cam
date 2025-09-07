@@ -13,6 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterIconBottom = document.getElementById('filter-icon-bottom');
     const filterIconLeft = document.getElementById('filter-icon-left');
     const filterIconRight = document.getElementById('filter-icon-right');
+    const filterValuesDisplay = document.getElementById('filter-values-display');
+    const coordsDisplay = document.getElementById('coords-display');
+    const retroValue = document.getElementById('retro-value');
+    const sepiaValue = document.getElementById('sepia-value');
+    const bloomValue = document.getElementById('bloom-value');
+    const colorValue = document.getElementById('color-value');
 
     // WebGLコンテキストの取得とエラーチェック
     const gl = canvas.getContext('webgl');
@@ -40,13 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
 
-    // 4つのフィルターを統合し、グラデーションを適用するフラグメントシェーダー
+    // 4つのフィルターを統合し、外部から重みを受け取るフラグメントシェーダー
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
         uniform vec2 u_resolution;
         uniform float u_time;
-        uniform vec2 u_touch_pos;
+        uniform float u_weight_top;
+        uniform float u_weight_right;
+        uniform float u_weight_bottom;
+        uniform float u_weight_left;
         varying vec2 v_texCoord;
 
         // ランダムな値を生成する関数
@@ -54,45 +63,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
         }
 
-        // タッチ位置から各フィルターの適用度を計算する関数
-        vec4 calculateWeights(vec2 touchPos) {
-            vec2 center = vec2(0.5, 0.5);
-            vec2 normalizedPos = touchPos - center;
-            float topWeight = smoothstep(0.0, 1.0, normalizedPos.y + 0.5);
-            float bottomWeight = smoothstep(0.0, 1.0, 0.5 - normalizedPos.y);
-            float rightWeight = smoothstep(0.0, 1.0, normalizedPos.x + 0.5);
-            float leftWeight = smoothstep(0.0, 1.0, 0.5 - normalizedPos.x);
-
-            float totalWeight = topWeight + bottomWeight + rightWeight + leftWeight;
-            return vec4(topWeight, rightWeight, bottomWeight, leftWeight) / totalWeight;
-        }
-
         void main() {
             vec2 st = gl_FragCoord.xy / u_resolution.xy;
             vec4 baseColor = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
 
-            // タッチされていない場合はフィルターを適用しない
-            if (u_touch_pos.x < 0.0) {
-                gl_FragColor = baseColor;
-                return;
-            }
-
-            // 各フィルターの適用度を計算
-            vec4 weights = calculateWeights(u_touch_pos);
-
             // フィルターを個別に適用した色を計算
             vec4 filteredColorTop = baseColor;
             vec3 noise = vec3(random(st + u_time), random(st * 2.0 - u_time), random(st + 5.0 * u_time));
-            filteredColorTop.rgb += noise * 0.2 * weights.x; // レトロフィルム（グレイン＆ノイズ）
-            filteredColorTop.rgb *= mix(vec3(1.0), vec3(1.1, 1.05, 0.9), weights.x);
+            filteredColorTop.rgb += noise * 0.5 * u_weight_top;
+            filteredColorTop.rgb *= mix(vec3(1.0), vec3(1.1, 1.05, 0.9), u_weight_top);
             vec2 uv = st - 0.5;
             float vignette = smoothstep(0.8, 0.2, dot(uv, uv) * 2.0);
-            filteredColorTop.rgb *= mix(vec3(1.0), vec3(vignette), weights.x);
+            filteredColorTop.rgb *= mix(vec3(1.0), vec3(vignette), u_weight_top);
 
             vec4 filteredColorRight = baseColor;
             float grayRight = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
             vec3 sepia = vec3(grayRight * 1.2, grayRight * 1.0, grayRight * 0.8);
-            filteredColorRight.rgb = mix(baseColor.rgb, sepia, weights.y); // セピアトーン
+            filteredColorRight.rgb = mix(baseColor.rgb, sepia, u_weight_right);
 
             vec4 filteredColorBottom = baseColor;
             float brightness = dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -100,22 +87,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (brightness > 0.8) {
                 bloom = (baseColor.rgb - 0.8) * 1.5;
             }
-            filteredColorBottom.rgb = mix(baseColor.rgb, baseColor.rgb + bloom * 1.5, weights.z); // ブルーム＆グロー
+            filteredColorBottom.rgb = mix(baseColor.rgb, baseColor.rgb + bloom * 3.0, u_weight_bottom);
 
             vec4 filteredColorLeft = baseColor;
-            vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.01 * weights.w, cos(u_time * 0.1) * 0.01 * weights.w));
+            vec4 red = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(sin(u_time * 0.1) * 0.05 * u_weight_left, cos(u_time * 0.1) * 0.05 * u_weight_left));
             vec4 green = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
-            vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.01 * weights.w, sin(u_time * 0.1) * 0.01 * weights.w));
-            filteredColorLeft.rgb = vec3(red.r, green.g, blue.b); // カラーシフト
+            vec4 blue = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y) + vec2(cos(u_time * 0.1) * -0.05 * u_weight_left, sin(u_time * 0.1) * 0.05 * u_weight_left));
+            filteredColorLeft.rgb = vec3(red.r, green.g, blue.b);
 
             // 各フィルターの色を重みに応じてブレンド
             vec4 finalColor = 
-                filteredColorTop * weights.x +
-                filteredColorRight * weights.y +
-                filteredColorBottom * weights.z +
-                filteredColorLeft * weights.w;
+                filteredColorTop * u_weight_top +
+                filteredColorRight * u_weight_right +
+                filteredColorBottom * u_weight_bottom +
+                filteredColorLeft * u_weight_left;
 
-            gl_FragColor = finalColor;
+            // 全ての重みが0の場合は元の色に戻す
+            if (u_weight_top + u_weight_right + u_weight_bottom + u_weight_left < 0.01) {
+                gl_FragColor = baseColor;
+            } else {
+                gl_FragColor = finalColor / (u_weight_top + u_weight_right + u_weight_bottom + u_weight_left);
+            }
         }
     `;
 
@@ -221,17 +213,25 @@ document.addEventListener('DOMContentLoaded', () => {
         filterIconRight.style.transform = `translateY(-50%) scale(${1.0 + tempIntensity * 0.2})`;
     }
 
+    let weights = {
+      top: 0.0,
+      right: 0.0,
+      bottom: 0.0,
+      left: 0.0
+    };
+
     function render(time) {
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), gl.canvas.width, gl.canvas.height);
         gl.uniform1f(gl.getUniformLocation(program, 'u_time'), time * 0.001);
-        
-        const touchPosLocation = gl.getUniformLocation(program, 'u_touch_pos');
-        if (touchPosLocation) {
-            gl.uniform2f(touchPosLocation, lastProcessedPos ? lastProcessedPos.x : -1.0, lastProcessedPos ? lastProcessedPos.y : -1.0);
-        }
+
+        // 新しい重みのUniformをシェーダーに渡す
+        gl.uniform1f(gl.getUniformLocation(program, 'u_weight_top'), weights.top);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_weight_right'), weights.right);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_weight_bottom'), weights.bottom);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_weight_left'), weights.left);
 
         if (!isCameraMode && originalImage) {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -274,9 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         offscreenGl.uniform2f(offscreenGl.getUniformLocation(offscreenProgram, 'u_resolution'), offscreenCanvas.width, offscreenCanvas.height);
         offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_time'), 0);
-        if (offscreenGl.getUniformLocation(offscreenProgram, 'u_touch_pos')) {
-            offscreenGl.uniform2f(offscreenGl.getUniformLocation(offscreenProgram, 'u_touch_pos'), lastProcessedPos ? lastProcessedPos.x : -1.0, lastProcessedPos ? lastProcessedPos.y : -1.0);
-        }
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_weight_top'), weights.top);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_weight_right'), weights.right);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_weight_bottom'), weights.bottom);
+        offscreenGl.uniform1f(offscreenGl.getUniformLocation(offscreenProgram, 'u_weight_left'), weights.left);
         
         offscreenGl.drawArrays(offscreenGl.TRIANGLES, 0, 6);
 
@@ -326,15 +327,46 @@ document.addEventListener('DOMContentLoaded', () => {
         touchIndicator.style.top = `${clampedY}px`;
         touchIndicator.style.opacity = 1;
         
-        lastProcessedPos = { 
-            x: (clampedX - rectLeft) / rectWidth, 
-            y: (clampedY - rectTop) / rectHeight 
-        };
+        const normalizedX = (clampedX - rectLeft) / rectWidth;
+        const normalizedY = (clampedY - rectTop) / rectHeight;
+        
+        lastProcessedPos = { x: normalizedX, y: normalizedY };
+
+        // 各フィルターの重みを計算
+        const distToCenter = Math.sqrt(Math.pow(normalizedX - 0.5, 2) + Math.pow(normalizedY - 0.5, 2));
+        const maxDist = Math.sqrt(0.5 * 0.5 + 0.5 * 0.5);
+
+        const retroWeight = Math.max(0, normalizedY - 0.5);
+        const sepiaWeight = Math.max(0, normalizedX - 0.5);
+        const bloomWeight = Math.max(0, 0.5 - normalizedY);
+        const colorShiftWeight = Math.max(0, 0.5 - normalizedX);
+
+        const totalWeight = retroWeight + sepiaWeight + bloomWeight + colorShiftWeight;
+        
+        if (totalWeight > 0) {
+            weights.top = retroWeight / totalWeight;
+            weights.right = sepiaWeight / totalWeight;
+            weights.bottom = bloomWeight / totalWeight;
+            weights.left = colorShiftWeight / totalWeight;
+        } else {
+            weights = { top: 0, right: 0, bottom: 0, left: 0 };
+        }
+
+        // UI表示の更新
+        coordsDisplay.textContent = `(${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`;
+        retroValue.textContent = weights.top.toFixed(2);
+        sepiaValue.textContent = weights.right.toFixed(2);
+        bloomValue.textContent = weights.bottom.toFixed(2);
+        colorValue.textContent = weights.left.toFixed(2);
+        
+        filterValuesDisplay.style.opacity = 1;
     }
 
     function handleEnd() {
         isTouching = false;
         touchIndicator.style.opacity = 0;
+        filterValuesDisplay.style.opacity = 0;
+        weights = { top: 0, right: 0, bottom: 0, left: 0 };
     }
     
     filterRectangle.addEventListener('mousedown', handleStart);
@@ -350,7 +382,8 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         lastProcessedPos = null;
-        gl.uniform2f(gl.getUniformLocation(program, 'u_touch_pos'), -1.0, -1.0);
+        weights = { top: 0, right: 0, bottom: 0, left: 0 };
+        filterValuesDisplay.style.opacity = 0;
     });
     window.dispatchEvent(new Event('resize'));
 
@@ -371,7 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
             imageUpload.classList.remove('hidden');
         }
         lastProcessedPos = null;
-        gl.uniform2f(gl.getUniformLocation(program, 'u_touch_pos'), -1.0, -1.0);
+        weights = { top: 0, right: 0, bottom: 0, left: 0 };
+        filterValuesDisplay.style.opacity = 0;
     }
 
     // イベントリスナー
